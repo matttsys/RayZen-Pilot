@@ -1,4 +1,4 @@
-RayZen Pilot 4.0.0 - bot host panel
+RayZen Pilot 4.1.0 - bot host panel
 ====================================
 
 1. Rename .env.example to .env

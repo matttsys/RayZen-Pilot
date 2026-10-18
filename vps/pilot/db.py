@@ -107,12 +107,21 @@ CREATE TABLE IF NOT EXISTS rz_seen (k TEXT PRIMARY KEY, ts REAL);
 CREATE TABLE IF NOT EXISTS rz_legacy_review (chat_id INTEGER, key TEXT, value TEXT, PRIMARY KEY (chat_id, key));
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1)]
+# v2: 48-hour word index for /purgeword. Holds normalized words only, never the message text.
+SCHEMA_V2 = """
+CREATE TABLE IF NOT EXISTS rz_msg_index (
+  chat_id INTEGER, message_id INTEGER, sender_id INTEGER, ts REAL, words TEXT,
+  PRIMARY KEY (chat_id, message_id));
+CREATE INDEX IF NOT EXISTS ix_msg_index_ts ON rz_msg_index(ts);
+CREATE INDEX IF NOT EXISTS ix_msg_index_sender ON rz_msg_index(sender_id);
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1), (2, SCHEMA_V2)]
 CHAT_TABLES = ["rz_chats", "rz_settings", "rz_user_chats", "rz_actions", "rz_cases", "rz_appeals", "rz_warns",
                "rz_answers", "rz_rules", "rz_blockwords", "rz_lock_layers", "rz_perm_state", "rz_night",
                "rz_log_routes", "rz_log_queue", "rz_confirm", "rz_announcements", "rz_reminders", "rz_events",
                "rz_polls", "rz_digest", "rz_join_requests", "rz_tickets", "rz_watch", "rz_errors",
-               "rz_legacy_review", "rz_ai_usage"]
+               "rz_legacy_review", "rz_ai_usage", "rz_msg_index"]
 
 
 def jd(v: Any) -> str:

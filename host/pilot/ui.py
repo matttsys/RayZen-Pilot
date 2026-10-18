@@ -16,12 +16,14 @@ HELP: dict[str, tuple[str, str, str, str]] = {
         "<code>/mute</code> · <code>/tmute 30m</code> · <code>/unmute</code> · <code>/kick</code> · <code>/kickme</code>\n"
         "<code>/warn</code> · <code>/warns</code> · <code>/rmwarn</code> · <code>/resetwarns</code>\n"
         "<code>/del</code> · <code>/purge</code> · <code>/pin</code> · <code>/unpin</code> · <code>/unpinall</code>\n"
+        "<code>/purgeword کلمه</code>: پاک کردن پیام‌های ۴۸ ساعت اخیر که این کلمه را دارند (چند کلمه: <code>متین، matin</code>)\n"
         "<code>/promote</code> · <code>/demote</code> · <code>/admins</code> · <code>/info</code> · <code>/id</code> · <code>/report</code>\n"
         "با ریپلای: بن · سکوت ۲ ساعت · رفع سکوت · اخطار · اخراج"), (
         "<code>/ban</code> · <code>/tban 2h</code> · <code>/unban</code> (reply, numeric id or username)\n"
         "<code>/mute</code> · <code>/tmute 30m</code> · <code>/unmute</code> · <code>/kick</code> · <code>/kickme</code>\n"
         "<code>/warn</code> · <code>/warns</code> · <code>/rmwarn</code> · <code>/resetwarns</code>\n"
         "<code>/del</code> · <code>/purge</code> · <code>/pin</code> · <code>/unpin</code> · <code>/unpinall</code>\n"
+        "<code>/purgeword word</code>: delete messages from the last 48h that contain the word (several: <code>matin, متین</code>)\n"
         "<code>/promote</code> · <code>/demote</code> · <code>/admins</code> · <code>/info</code> · <code>/id</code> · <code>/report</code>")),
     "locks": ("🔒 قفل و شب", "🔒 Locks & night", (
         "<code>/lock</code> [نوع] [مدت] · <code>/unlock</code> [نوع] · <code>/lockdown 1h</code> · <code>/lockstatus</code>\n"

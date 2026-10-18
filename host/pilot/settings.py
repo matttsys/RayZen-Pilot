@@ -94,6 +94,7 @@ _s("watch_on", "bool", True, "watch", "هشدار تغییر دسترسی", "Per
 _s("watch_notify", "choice", "log", "watch", "محل هشدار", "Alert to", choices=("log", "group", "off"))
 _s("retention_days", "int", 90, "privacy", "روز نگهداری", "Retention days", lo=7, hi=730)
 _s("keep_excerpt", "bool", False, "privacy", "ذخیرهٔ متن پیام در پرونده", "Keep message text in cases")
+_s("word_index", "bool", True, "privacy", "نمایهٔ ۴۸ ساعته برای /purgeword", "48h index for /purgeword")
 _s("announce_topic", "int", None, "topics", "تاپیک اطلاعیه‌ها", "Announcement topic")
 
 FILTER_KEYS = [k for k, s in SPECS.items() if s.enforce]

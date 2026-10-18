@@ -40,7 +40,7 @@ RayZen Pilot manages Telegram groups. It replies in Persian unless you switch a 
 | [`vps/`](https://github.com/matttsys/RayZen-Pilot/tree/main/vps) | [**rayzen-pilot-vps.zip**](https://github.com/matttsys/RayZen-Pilot/releases/latest/download/rayzen-pilot-vps.zip) | Linux servers with systemd, and Docker |
 | | [rayzen-pilot-dev.zip](https://github.com/matttsys/RayZen-Pilot/releases/latest/download/rayzen-pilot-dev.zip) | Source with the test suite, for development |
 
-Both folders run the same bot. `vps/` also has the installer, the systemd unit, the `rayzen` command and the Docker files. Each zip has the same bot files as its folder, so use whichever is easier. Checksums are in [SHA256SUMS.txt](https://github.com/matttsys/RayZen-Pilot/releases/latest/download/SHA256SUMS.txt), and older versions are on the [Releases](https://github.com/matttsys/RayZen-Pilot/releases) page.
+Both folders run the same bot. `vps/` also has the installer, the systemd unit, the `rayzen` command and the Docker files. Each zip has the same bot files as its folder, so use whichever is easier. Checksums are in [SHA256SUMS.txt](https://github.com/matttsys/RayZen-Pilot/releases/latest/download/SHA256SUMS.txt), and older versions are on the [Releases](https://github.com/matttsys/RayZen-Pilot/releases) page. What changed: [CHANGELOG.md](CHANGELOG.md).
 
 ## Features
 
@@ -188,7 +188,7 @@ python app.py
 
    | Right | Used for |
    |---|---|
-   | Delete messages | Filters, `/del`, `/purge` |
+   | Delete messages | Filters, `/del`, `/purge`, `/purgeword` |
    | Ban users | Ban and mute, group locks, captcha |
    | Pin messages | Pins, pinned announcements |
    | Invite users via link | Join-request desk, invite links |
@@ -240,7 +240,7 @@ In the bot, `/help` lists every command by section. Here's a summary:
 | Area | Commands |
 |---|---|
 | Members | `/ban` `/tban 2h` `/unban` `/mute` `/tmute 30m` `/unmute` `/kick` `/warn` `/warns` `/rmwarn` `/resetwarns` `/promote` `/demote` `/info` `/id` |
-| Messages | `/del` `/purge` `/pin` `/unpin` `/unpinall` `/report` |
+| Messages | `/del` `/purge` `/purgeword word` `/pin` `/unpin` `/unpinall` `/report` |
 | Locks | `/lock [type] [time]` `/unlock` `/lockdown 1h` `/lockstatus` `/night 01:00 08:00` `/slowmode` `/cooldown on 30` |
 | Filters | `/antilink` `/antiforward` `/antichannel` `/block photos` `/addblock word` `/blocklist` `/flood on 6 mute` `/captcha on` `/antiraid on` `/cleanservice on` |
 | When something goes wrong | `/why` (what was deleted and by which filter) · `/pause` · `/resume` · `/safereset` |
@@ -256,7 +256,17 @@ In the bot, `/help` lists every command by section. Here's a summary:
 
 Durations: `30m`, `2h`, `1d`, `1w`. Targets: reply to a message, a numeric id, or `@username`.
 
-**Persian text commands.** Admins can reply to a message with **«بن»**, **«سکوت ۲ ساعت»**, **«رفع سکوت»**, **«اخطار»**, **«اخراج»**, **«حذف»** or **«سنجاق»**, or send **«قفل گروه»**, **«باز کردن گروه»**, **«تنظیمات»** or **«سلامت گروه»** with no slash. Members can use **«قوانین»**, **«راهنما»** and **«آیدی»**.
+**Persian text commands.** Admins can reply to a message with **«بن»**, **«سکوت ۲ ساعت»**, **«رفع سکوت»**, **«اخطار»**, **«اخراج»**, **«حذف»** or **«سنجاق»**, or send **«حذف کلمه متین»**, **«قفل گروه»**, **«باز کردن گروه»**, **«تنظیمات»** or **«سلامت گروه»** with no slash. Members can use **«قوانین»**, **«راهنما»** and **«آیدی»**.
+
+### Delete messages by word
+
+`/purgeword متین` deletes every message from the last 48 hours that contains the word, from anyone, admins included.
+
+- It also matches attached forms like `متینو`, `متینه` and `متین‌جان`, and ignores `ي`/`ی`, `ك`/`ک`, diacritics and half-spaces. `ثمتین` doesn't match.
+- Several spellings at once: `/purgeword متین، matin`.
+- It always asks first: *"12 messages with «متین» from 4 people in the last 48h. Delete them?"* Only the admin who asked can press Yes.
+- You need the **Delete messages** right, and so does the bot.
+- Telegram doesn't let bots search a chat or delete messages older than 48 hours, so the bot keeps a 48-hour word index (see [Data and privacy](#data-and-privacy)). `/purgeword off` turns it off and clears it. Messages sent while it's off can't be purged.
 
 ## AI assistant
 
@@ -322,7 +332,8 @@ pilot/
 
 ## Data and privacy
 
-- Group messages are never stored. The bot keeps only settings, actions, warns, cases and what people send to it on purpose (rules, notes, tickets, appeals).
+- Message text is not stored. The bot keeps settings, actions, warns, cases and what people send to it on purpose (rules, notes, tickets, appeals).
+- For `/purgeword` only, it keeps a **48-hour word index**: the normalized words of each group message with its chat, message id, sender id and time. It doesn't keep the message text. Rows older than 48 hours are deleted automatically. Commands and messages to the bot aren't indexed. `/purgeword off` turns it off and clears it, and `/forgetme` and `/resetdata` remove it too.
 - `/retention 90` sets how many days history is kept. `/exportdata` and `/resetdata` work per group.
 - Members can send `/mydata` and `/forgetme` in the bot's private chat.
 - `/backup` sends a group's settings to your private chat as a file. Reply to that file with `/restore`, or use `/clone` to copy them to another group.
@@ -360,5 +371,5 @@ MIT with an attribution requirement. You can use, clone, change and redistribute
 
 <p align="center">
   <img src="assets/logo-256.png" width="72" alt="RayZen Pilot logo"><br>
-  <sub>RayZen Pilot 4.0.0 · python-telegram-bot 22.8 · SQLite · <a href="https://github.com/matttsys/RayZen-Pilot">GitHub</a> · <a href="README.fa.md">فارسی</a></sub>
+  <sub>RayZen Pilot 4.1.0 · python-telegram-bot 22.8 · SQLite · <a href="https://github.com/matttsys/RayZen-Pilot">GitHub</a> · <a href="README.fa.md">فارسی</a></sub>
 </p>

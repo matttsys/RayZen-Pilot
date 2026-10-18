@@ -46,6 +46,9 @@ async def tick(context=None) -> None:
             await watchdog_sweep()
         if every("retention", 6 * 3600):
             await retention()
+        if every("msgindex", 600):
+            from pilot.purgeword import sweep
+            await sweep()
     except Exception:  # noqa: BLE001
         RT.tick_stats["errors"] += 1
         log.exception("periodic step failed")

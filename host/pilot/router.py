@@ -7,7 +7,7 @@ import time
 
 from telegram import ChatMemberRestricted, Update, User
 
-from pilot import ai, audit, authz, confirm, content, desk, logs, settings as S, targets, tg, tools, ui
+from pilot import ai, audit, authz, confirm, content, desk, logs, purgeword, settings as S, targets, tg, tools, ui
 from pilot import commands as K
 from pilot import commands2 as K2
 from pilot.ctx import Cmd, build, lang_tz, _user_lang
@@ -27,6 +27,7 @@ FA_CMDS: list[tuple[str, str, bool]] = [   # (phrase, command, exact-only)
     ("حذف اخطار", "rmwarn", True), ("پاک کردن اخطارها", "resetwarns", True),
     ("بن", "ban", False), ("سکوت", "mute", False), ("سایلنت", "mute", False), ("اخطار", "warn", False),
     ("اخراج", "kick", False), ("سنجاق", "pin", True), ("پین", "pin", True), ("حذف", "del", True),
+    ("حذف کلمه", "purgeword", False), ("پاکسازی کلمه", "purgeword", False),
     ("قفل گروه", "lockdown", False), ("بازکردن گروه", "unlock", True), ("باز کردن گروه", "unlock", True),
     ("وضعیت قفل", "lockstatus", True), ("تنظیمات", "settings", True), ("سلامت گروه", "health", True),
 ]
@@ -66,6 +67,8 @@ async def dispatch(update: Update, context=None) -> None:
             await on_callback(update)
         elif update.message:
             await on_message(update)
+        elif update.edited_message:
+            await purgeword.note(update.edited_message, edited=True)
         elif update.chat_join_request:
             await desk.on_join_request(update.chat_join_request)
         elif update.my_chat_member:
@@ -119,6 +122,8 @@ async def on_message(update: Update) -> None:
         await _clean_service(m)
         return
     if m.date and time.time() - m.date.timestamp() > STALE_S:
+        if group:
+            await purgeword.note(m)             # still deletable for 48h
         return                                  # skip commands queued while offline
     text = m.text or m.caption or ""
     if chat.type == "private":
@@ -149,13 +154,15 @@ async def on_message(update: Update) -> None:
         return
     if await persian_command(update, text):
         return
+    ai_text = _ai_trigger(m, text)
+    if ai_text is None:
+        await purgeword.note(m)                 # commands and requests to the bot are not indexed
     if text.startswith("#"):
         name = text[1:].split(None, 1)[0] if len(text) > 1 else ""
         row = await content.answer_get(chat.id, name) if name else None
         if row:
             await content.answer_send(chat.id, row, thread_id=thread, reply_to=m.message_id)
             return
-    ai_text = _ai_trigger(m, text)
     if ai_text is not None:
         c = await build(update, name="ai", text=ai_text, source="mention")
         await ai.handle(c, ai_text)

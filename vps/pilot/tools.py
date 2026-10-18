@@ -13,7 +13,7 @@ from pilot.rt import RT
 from pilot.util import esc, fmt_dt, fmt_duration, now, rule_label, short
 
 log = logging.getLogger("pilot.tools")
-NEEDED = [("delete", "فیلترها، /del، /purge", "filters, /del, /purge"),
+NEEDED = [("delete", "فیلترها، /del، /purge، /purgeword", "filters, /del, /purge, /purgeword"),
           ("restrict", "بن/سکوت، قفل گروه، کپچا", "ban/mute, group locks, captcha"),
           ("pin", "سنجاق و اطلاعیهٔ سنجاق‌شده", "pins, pinned announcements"),
           ("invite", "میز درخواست عضویت، لینک دعوت", "join-request desk, invite link"),
@@ -364,7 +364,7 @@ DATA_TABLES = [("rz_settings", "تنظیمات", "settings"), ("rz_user_chats", 
                ("rz_tickets", "تیکت‌ها", "tickets"), ("rz_answers", "پاسخ‌ها", "answers"),
                ("rz_announcements", "اطلاعیه‌ها", "announcements"), ("rz_reminders", "یادآورها", "reminders"),
                ("rz_events", "رویدادها", "events"), ("rz_join_requests", "درخواست‌های عضویت", "join requests"),
-               ("rz_errors", "خطاها", "errors")]
+               ("rz_errors", "خطاها", "errors"), ("rz_msg_index", "نمایهٔ ۴۸ ساعته (/purgeword)", "48h index (/purgeword)")]
 
 
 async def data_policy_text(chat_id: int, lang: str) -> str:
@@ -414,6 +414,7 @@ async def user_data(user_id: int) -> dict:
         "tickets": await q("SELECT chat_id,id,text,status,created_at FROM rz_tickets WHERE user_id=?", (user_id,)),
         "reminders": await q("SELECT id,text,due,status FROM rz_reminders WHERE user_id=?", (user_id,)),
         "rsvps": await q("SELECT event_id,status,checked_in FROM rz_rsvps WHERE user_id=?", (user_id,)),
+        "purgeword_index_48h": await RT.db.val("SELECT COUNT(*) FROM rz_msg_index WHERE sender_id=?", (user_id,), 0),
     }
 
 
@@ -427,6 +428,7 @@ async def forget_user(user_id: int) -> list[str]:
                            ("DELETE FROM rz_rsvps WHERE user_id=?", "rsvps"),
                            ("UPDATE rz_tickets SET text='[removed by user]' WHERE user_id=? AND status='closed'", "closed_ticket_text"),
                            ("DELETE FROM rz_join_requests WHERE user_id=? AND status<>'pending'", "join_requests"),
+                           ("DELETE FROM rz_msg_index WHERE sender_id=?", "purgeword_index"),
                            ("DELETE FROM rz_users WHERE user_id=?", "profile_index")):
             n = c.execute(sql, (user_id,)).rowcount
             if n:

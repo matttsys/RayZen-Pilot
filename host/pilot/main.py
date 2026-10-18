@@ -53,6 +53,7 @@ ADMIN_CMDS = [("settings", "تنظیمات", "Settings"), ("health", "وضعیت
               ("mute", "سایلنت", "Mute"), ("warn", "اخطار", "Warn"), ("unban", "رفع بن", "Unban"), ("unmute", "رفع سایلنت", "Unmute"),
               ("lock", "قفل", "Lock"), ("unlock", "باز کردن", "Unlock"), ("night", "قفل شبانه", "Night lock"),
               ("setwelcome", "متن خوشامد", "Welcome text"), ("setlog", "تنظیم لاگ", "Set log"),
+              ("purgeword", "پاک کردن پیام‌ها با یک کلمه", "Delete messages by word"),
               ("history", "تاریخچه", "History"), ("why", "چرا پیام پاک شد", "Why deleted"),
               ("announce", "اطلاعیه", "Announcement"), ("digest", "گزارش", "Report"),
               ("ai", "هوش مصنوعی", "AI"), ("help", "راهنما", "Help")]

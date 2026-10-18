@@ -201,6 +201,7 @@ TOOLS = {
     "health": (None, False, False), "announce": ("info", False, False), "remind": (None, False, True),
     "poll": (None, False, False), "save_answer": ("info", False, False), "show_answer": (None, False, True),
     "slowmode_info": (None, False, True), "pin": ("pin", False, False), "show_rules": (None, False, True),
+    "purge_word": ("delete", True, False),
 }
 TARGET_TOOLS = {"ban", "unban", "mute", "unmute", "kick", "warn"}
 
@@ -228,12 +229,14 @@ Tools (args):
  announce{when:"2h"|"HH:MM"|"YYYY-MM-DD HH:MM", repeat: once|daily|weekly, text}
  remind{when, text, scope: me|group}  poll{question, options:[2-10 strings]}
  save_answer{name, text}  show_answer{name}  show_rules{}  pin{} (pins the replied message)
+ purge_word{word} (delete every message from the last 48h that contains this word; comma-separate alternatives, e.g. "متین، matin")
 Examples:
 "از ساعت ۱ شب تا ۸ صبح گروه رو ببند" -> {"reply":"","clarify":null,"actions":[{"tool":"night_lock","args":{"start":"01:00","end":"08:00"}}]}
 "این کاربر رو دو ساعت سایلنت کن" (reply) -> {"reply":"","clarify":null,"actions":[{"tool":"mute","args":{"target":"reply","duration":"2h"}}]}
 "کاربر 123456789 رو بن کن" -> {"reply":"","clarify":null,"actions":[{"tool":"ban","args":{"target":"123456789"}}]}
 "چرا پیام‌ها پاک میشن؟" -> {"reply":"","clarify":null,"actions":[{"tool":"explain_deletions","args":{}}]}
 "فیلترهای گروه رو خاموش کن" -> {"reply":"","clarify":null,"actions":[{"tool":"filters_off","args":{}}]}
+"همه پیام‌هایی که کلمه متین دارن رو پاک کن" -> {"reply":"","clarify":null,"actions":[{"tool":"purge_word","args":{"word":"متین"}}]}
 "بنش کن" with no reply -> {"reply":"","clarify":"کدوم کاربر؟ ریپلای کن یا آیدی عددی بده.","actions":[]}
 "چه مدلی هستی؟" -> {"reply":"Model hidden","clarify":null,"actions":[]}
 """
@@ -366,6 +369,12 @@ def validate_action(a: dict, c: Cmd) -> tuple[dict | None, str]:
     elif tool == "pin":
         if not c.reply:
             return None, "pin needs a replied message"
+    elif tool == "purge_word":
+        from pilot.purgeword import valid_query
+        word = _s(args.get("word"), 60)
+        if not valid_query(word):
+            return None, "invalid word"
+        g["word"] = word
     return out, ""
 
 
@@ -414,6 +423,10 @@ def describe(a: dict, c: Cmd) -> str:
         "remind": c.t(f"یادآوری در {fmt_dt(g.get('ts'), c.tz, 'fa', with_tz=False)}", f"reminder at {fmt_dt(g.get('ts'), c.tz, 'en', with_tz=False)}"),
         "poll": c.t(f"نظرسنجی: {esc(short(g.get('question'), 60))}", f"poll: {esc(short(g.get('question'), 60))}"),
         "save_answer": c.t(f"پاسخ #{esc(g.get('name'))}", f"answer #{esc(g.get('name'))}"),
+        "purge_word": c.t(f"پاک کردن پیام‌های ۴۸ ساعت اخیر با «{esc(g.get('word'))}»"
+                          + (f" ({g['n']} پیام از {g['people']} نفر)" if "n" in g else ""),
+                          f"delete last-48h messages containing “{esc(g.get('word'))}”"
+                          + (f" ({g['n']} messages from {g['people']} people)" if "n" in g else "")),
     }
     return m.get(t, t)
 
@@ -539,6 +552,11 @@ async def handle(c: Cmd, text: str) -> None:
     if not valid:
         await c.say("\n".join(problems) + c.t("\nانجام نشد.", "\nNot done."))
         return
+    for a in valid:
+        if a["tool"] == "purge_word":               # show the real count in the preview
+            from pilot import purgeword
+            rows = await purgeword.find(c.chat_id, purgeword.query_groups(a["args"]["word"]))
+            a["args"]["n"], a["args"]["people"] = len(rows), len({r["sender_id"] for r in rows})
     if needs_confirm(valid, c) or c.anon:
         need_right = next((a["right"] for a in valid if a["right"]), None)
         tok = await confirm.create(c.chat_id, None if c.anon else c.actor_id, "ai_plan",

@@ -694,13 +694,14 @@ async def _wd_fix(p, presser, chat_id, message):
 @command("privacy", scope="any", admin=False, section="privacy")
 async def k_privacy(c: Cmd):
     if c.is_private:
-        return await say(c, c.t("🔐 <b>حریم خصوصی</b>\nذخیره: آیدی، نام، یوزرنیم، اخطارها و پرونده‌ها. متن پیام‌ها ذخیره نمیشه.\n"
-                                "/mydata · /forgetme",
-                                "🔐 <b>Privacy</b>\nStored: id, name, username, warnings and cases. Message text is not stored.\n"
-                                "/mydata · /forgetme"))
+        return await say(c, c.t("🔐 <b>حریم خصوصی</b>\nذخیره: آیدی، نام، یوزرنیم، اخطارها و پرونده‌ها. متن پیام‌ها ذخیره نمیشه؛ "
+                                "فقط کلمات پیام‌های گروه ۴۸ ساعت برای /purgeword نگه داشته میشه.\n/mydata · /forgetme",
+                                "🔐 <b>Privacy</b>\nStored: id, name, username, warnings and cases. Message text is not stored; "
+                                "words from group messages are kept for 48h only, for /purgeword.\n/mydata · /forgetme"))
     ok, _ = await authz.check(c.chat_id, c.actor_id, None)
     if not ok:
-        return await say(c, c.t("🔐 متن پیام‌ها ذخیره نمیشه. /mydata در پیوی", "🔐 Message text is not stored. /mydata in private"))
+        return await say(c, c.t("🔐 متن پیام‌ها ذخیره نمیشه؛ فقط کلماتش ۴۸ ساعت برای /purgeword. /mydata در پیوی",
+                                "🔐 Message text is not stored; only its words, for 48h, for /purgeword. /mydata in private"))
     await say(c, await tools.data_policy_text(c.chat_id, c.lang),
               [[(c.t("📤 خروجی سوابق", "📤 Export records"), "pv:e"), (c.t("🗑 حذف داده‌های گروه", "🗑 Reset group data"), "pv:r")]])
 
@@ -728,8 +729,8 @@ async def k_exportdata(c: Cmd):
 
 async def reset_preview(c: Cmd) -> None:
     tok = await confirm.create(c.chat_id, c.actor_id, "reset_data", {}, right="info", ttl=300)
-    await say(c, c.t("⚠️ <b>حذف داده‌های گروه</b>\nتنظیمات، پاسخ‌ها، قوانین، تاریخچه، پرونده‌ها، اخطارها، اطلاعیه‌ها، یادآورها، تیکت‌ها و لاگ پاک میشن.",
-                     "⚠️ <b>Delete group data</b>\nSettings, answers, rules, history, cases, warnings, announcements, reminders, tickets and log route will be removed."),
+    await say(c, c.t("⚠️ <b>حذف داده‌های گروه</b>\nتنظیمات، پاسخ‌ها، قوانین، تاریخچه، پرونده‌ها، اخطارها، اطلاعیه‌ها، یادآورها، تیکت‌ها، لاگ و نمایهٔ ۴۸ ساعته پاک میشن.",
+                     "⚠️ <b>Delete group data</b>\nSettings, answers, rules, history, cases, warnings, announcements, reminders, tickets, log route and the 48h index will be removed."),
               confirm.buttons(tok, c.lang, c.t("🗑 بله، حذف کن", "🗑 Yes, delete")))
 
 
@@ -757,8 +758,8 @@ async def k_mydata(c: Cmd):
 @command("forgetme", scope="private", admin=False, section="privacy")
 async def k_forgetme(c: Cmd):
     tok = await confirm.create(c.actor_id, c.actor_id, "forget", {}, ttl=300)
-    await say(c, c.t("🗑 پاک میشه: پروفایل، یادآورها، RSVPها، تیکت‌های بسته.\nمی‌مونه: اخطارها و پرونده‌ها.",
-                     "🗑 Removed: profile, reminders, RSVPs, closed tickets.\nKept: warnings and cases."),
+    await say(c, c.t("🗑 پاک میشه: پروفایل، یادآورها، RSVPها، تیکت‌های بسته، نمایهٔ ۴۸ ساعته.\nمی‌مونه: اخطارها و پرونده‌ها.",
+                     "🗑 Removed: profile, reminders, RSVPs, closed tickets, 48h index.\nKept: warnings and cases."),
               confirm.buttons(tok, c.lang, c.t("🗑 حذف کن", "🗑 Delete")))
 
 

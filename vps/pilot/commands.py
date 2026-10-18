@@ -154,6 +154,8 @@ async def k_del(c):
     out = await tg.delete(c.chat_id, c.reply.message_id)
     if out.ok:
         await tg.delete(c.chat_id, c.message_id)
+        from pilot.purgeword import forget_ids
+        await forget_ids(c.chat_id, [c.reply.message_id])
         await audit.record(c.chat_id, c.actor_id, "admin", "purge", params={"n": 1})
     else:
         await say(c, M.fail_text(c, out, "delete"))
@@ -966,6 +968,9 @@ async def run_tool(c: Cmd, tool: str, g: dict) -> str:
             return c.t("پیدا نشد. /faq", "Not found. /faq")
         await content.answer_send(c.chat_id, row, thread_id=c.thread_id if c.is_forum else None)
         return ""
+    if tool == "purge_word":
+        from pilot import purgeword
+        return await purgeword.execute(c, g["word"])
     if tool == "pin":
         out = await tg.call(RT.bot.pin_chat_message, chat_id=c.chat_id, message_id=c.reply.message_id, disable_notification=True)
         return c.t("📌 سنجاق شد.", "📌 Pinned.") if out.ok else M.fail_text(c, out, "pin")

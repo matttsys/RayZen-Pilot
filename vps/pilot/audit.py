@@ -16,7 +16,7 @@ CASE_ACTIONS = {"ban", "tban", "mute", "tmute", "kick", "warn", "auto_ban", "aut
 
 ACTION_FA = {"ban": "بن", "tban": "بن موقت", "unban": "رفع بن", "mute": "سکوت", "tmute": "سکوت موقت",
              "unmute": "رفع سکوت", "kick": "اخراج", "warn": "اخطار", "unwarn": "حذف اخطار", "lock": "قفل",
-             "unlock": "باز کردن قفل", "setting": "تغییر تنظیم", "auto_delete": "حذف خودکار", "purge": "پاکسازی",
+             "unlock": "باز کردن قفل", "setting": "تغییر تنظیم", "auto_delete": "حذف خودکار", "purge": "پاکسازی", "purge_word": "پاکسازی با کلمه",
              "auto_mute": "سکوت خودکار", "auto_kick": "اخراج خودکار", "auto_ban": "بن خودکار", "ban_channel": "بن کانال",
              "pin": "سنجاق", "promote": "ارتقا", "demote": "عزل", "night": "قفل شبانه", "welcome": "خوشامد",
              "restore": "بازیابی تنظیمات", "join_approve": "تأیید عضویت", "join_decline": "رد عضویت", "undo": "برگرداندن",

@@ -80,7 +80,13 @@
   <rect x="344" y="500" width="52" height="52" rx="14.0" fill="url(#g-amber)"/>
   <g transform="translate(355.0 511.0) scale(1.250)" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M2 2l20 20"/></g>
   <text x="396" y="584" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="21" fill="#EAF2FA" font-weight="700" direction="rtl" text-anchor="start">حریم خصوصی</text>
-  <text x="396" y="614" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" direction="rtl" text-anchor="start">پیام‌های گروه هیچ‌وقت ذخیره نمی‌شوند⁦.⁩</text>
-  <text x="396" y="636" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" direction="rtl" text-anchor="start">دورهٔ نگهداری، خروجی داده</text>
-  <text x="396" y="658" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" direction="rtl" text-anchor="start">و ⁦/forgetme⁩ آماده‌اند⁦.⁩</text>
+  <text x="396" y="614" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" direction="rtl" text-anchor="start">متن پیام‌ها ذخیره نمی‌شود؛ فقط کلماتش</text>
+  <text x="396.0" y="636" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="rtl" text-anchor="start">۴۸ ساعت برای </text>
+  <text x="234.0" y="636" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="ltr" text-anchor="start">/purgeword</text>
+  <text x="234.0" y="636" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="rtl" text-anchor="start"> نگه داشته می‌شود</text>
+  <text x="122.2" y="636" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="ltr" text-anchor="start">.</text>
+  <text x="396.0" y="658" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="rtl" text-anchor="start">دورهٔ نگهداری، خروجی داده و </text>
+  <text x="167.5" y="658" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="ltr" text-anchor="start">/forgetme</text>
+  <text x="167.5" y="658" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="rtl" text-anchor="start"> هم هست</text>
+  <text x="100.7" y="658" font-family="Vazirmatn, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif" font-size="14.5" fill="#9DB2C7" xml:space="preserve" direction="ltr" text-anchor="start">.</text>
 </svg>

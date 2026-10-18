@@ -335,6 +335,8 @@ async def purge(c: Cmd, from_id: int, to_id: int) -> Act:
         out = await tg.call(RT.bot.delete_messages, chat_id=c.chat_id, message_ids=ids[i:i + 100])
         if out.ok:
             deleted_calls += 1
+            from pilot.purgeword import forget_ids
+            await forget_ids(c.chat_id, ids[i:i + 100])
         else:
             failed += 1
     await audit.record(c.chat_id, c.actor_id, actor_kind(c), "purge", params={"from": from_id, "to": to_id, "n": len(ids)},
