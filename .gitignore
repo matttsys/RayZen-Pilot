@@ -1,0 +1,29 @@
+# secrets: never commit these
+.env
+.env.*
+!.env.example
+
+# runtime data
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+
+# python
+.venv/
+venv/
+.local/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# build output and editors
+*.zip
+*.tmp
+.DS_Store
+.idea/
+.vscode/

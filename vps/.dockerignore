@@ -1,0 +1,11 @@
+.env
+data/
+backups/
+.venv/
+.git/
+**/__pycache__/
+*.pyc
+assets/
+docs/
+*.md
+*.zip

@@ -1,0 +1,4 @@
+# RayZen Pilot runtime (Pterodactyl python egg). pip only, no build step.
+python-telegram-bot[rate-limiter]==22.8
+aiohttp>=3.9,<4
+tzdata>=2024.1

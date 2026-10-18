@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# rayzen: manage the RayZen Pilot service
+set -euo pipefail
+
+DIR="__DIR__"
+SVC_USER="__USER__"
+SVC="rayzen-pilot"
+PY="$DIR/.venv/bin/python"
+
+if [[ -t 1 ]]; then B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; N=$'\033[0m'; else B=""; D=""; G=""; Y=""; R=""; N=""; fi
+ok()  { printf "%s✔%s %s\n" "$G" "$N" "$*"; }
+die() { printf "%s✖%s %s\n" "$R" "$N" "$*" >&2; exit 1; }
+root() { [[ "$(id -u)" -eq 0 ]] || die "run with sudo: sudo rayzen $*"; }
+
+usage() {
+  cat <<EOF
+${B}rayzen${N} - manage RayZen Pilot
+
+  status            is it running, uptime, bot username
+  logs [-f]         last 100 log lines (-f to follow)
+  start | stop | restart
+  config            run the setup questions again, then restart
+  backup            save database + .env to $DIR/backups
+  update <zip|dir>  install a new release, keep .env and data
+  uninstall         remove the service (asks before deleting data)
+  version
+EOF
+}
+
+cmd_status() {
+  if systemctl is-active --quiet "$SVC"; then
+    since="$(systemctl show "$SVC" -p ActiveEnterTimestamp --value)"
+    bot="$(journalctl -u "$SVC" -n 200 --no-pager 2>/dev/null | grep -o 'up as @[A-Za-z0-9_]*' | tail -1 | cut -d@ -f2 || true)"
+    printf "%s● running%s%s  since %s\n" "$G" "$N" "${bot:+  @$bot}" "$since"
+  else
+    printf "%s● stopped%s\n" "$R" "$N"
+    journalctl -u "$SVC" -n 5 --no-pager 2>/dev/null | sed 's/^/  /' || true
+  fi
+}
+
+cmd_backup() {
+  root backup
+  mkdir -p "$DIR/backups"
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  tmp="$(mktemp -d)"
+  if [[ -f "$DIR/data/pilot.db" ]]; then
+    "$PY" - "$DIR/data/pilot.db" "$tmp/pilot.db" <<'PYEOF'
+import sqlite3, sys
+src = sqlite3.connect(sys.argv[1])
+dst = sqlite3.connect(sys.argv[2])
+src.backup(dst)
+dst.close(); src.close()
+PYEOF
+  fi
+  [[ -f "$DIR/.env" ]] && cp "$DIR/.env" "$tmp/.env"
+  tar -czf "$DIR/backups/rayzen-$stamp.tar.gz" -C "$tmp" .
+  rm -rf "$tmp"
+  chmod 600 "$DIR/backups/rayzen-$stamp.tar.gz"
+  ok "$DIR/backups/rayzen-$stamp.tar.gz"
+}
+
+cmd_update() {
+  root update
+  src="${1:-}"
+  [[ -n "$src" ]] || die "usage: rayzen update <release.zip | folder>"
+  work="$(mktemp -d)"
+  if [[ -f "$src" ]]; then
+    command -v unzip >/dev/null || die "unzip is not installed"
+    unzip -q "$src" -d "$work"
+    src="$work"
+    [[ -f "$src/app.py" ]] || src="$(dirname "$(find "$work" -maxdepth 3 -name app.py | head -1)")"
+  fi
+  [[ -f "$src/app.py" && -d "$src/pilot" ]] || die "no RayZen Pilot release found in $1"
+  cmd_backup
+  systemctl stop "$SVC"
+  (cd "$src" && tar --exclude='./.env' --exclude='./data' --exclude='./.venv' --exclude='./backups' --exclude='__pycache__' -cf - .) \
+    | (cd "$DIR" && tar -xf -)
+  "$PY" -m pip install -q -r "$DIR/requirements.txt"
+  chown -R "$SVC_USER":"$SVC_USER" "$DIR"
+  systemctl start "$SVC"
+  rm -rf "$work"
+  ok "updated; database migrations run on start"
+  sleep 4; cmd_status
+}
+
+cmd_uninstall() {
+  root uninstall
+  read -r -p "Remove the RayZen Pilot service? [y/N] " a
+  [[ "$a" =~ ^[Yy]$ ]] || exit 0
+  systemctl disable --now "$SVC" >/dev/null 2>&1 || true
+  rm -f "/etc/systemd/system/$SVC.service"
+  systemctl daemon-reload
+  ok "service removed"
+  read -r -p "Also delete $DIR (database, .env, backups)? [y/N] " a
+  if [[ "$a" =~ ^[Yy]$ ]]; then rm -rf "$DIR"; ok "files deleted"; else ok "files kept in $DIR"; fi
+  rm -f /usr/local/bin/rayzen
+}
+
+case "${1:-}" in
+  status|"") cmd_status ;;
+  logs)      if [[ "${2:-}" == "-f" ]]; then journalctl -u "$SVC" -f -n 50 --no-pager; else journalctl -u "$SVC" -n 100 --no-pager; fi ;;
+  start|stop|restart) root "$1"; systemctl "$1" "$SVC"; ok "$1"; [[ "$1" == stop ]] || { sleep 3; cmd_status; } ;;
+  config)    root config; "$PY" "$DIR/configure.py" --env "$DIR/.env"; chown "$SVC_USER":"$SVC_USER" "$DIR/.env"; chmod 600 "$DIR/.env"; systemctl restart "$SVC"; sleep 3; cmd_status ;;
+  backup)    cmd_backup ;;
+  update)    cmd_update "${2:-}" ;;
+  uninstall) cmd_uninstall ;;
+  version)   "$PY" -c "import sys; sys.path.insert(0, '$DIR'); import pilot; print('RayZen Pilot', pilot.__version__)" ;;
+  -h|--help|help) usage ;;
+  *) usage; exit 1 ;;
+esac

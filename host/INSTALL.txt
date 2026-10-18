@@ -1,0 +1,24 @@
+RayZen Pilot 4.0.0 - bot host panel
+====================================
+
+1. Rename .env.example to .env
+2. Fill in BOT_TOKEN (from @BotFather) and OWNER_ID (your numeric id, ask @userinfobot)
+3. Startup: App py file = app.py, Requirements file = requirements.txt
+4. Start. The console prints "up as @yourbot" when the bot is online.
+
+If you start before step 1, the bot creates .env for you and stops.
+Updating: upload the new zip and unarchive over the old files. .env and data/ are kept.
+Full guide: https://github.com/matttsys/RayZen-Pilot
+
+
+راه‌اندازی روی هاست ربات
+========================
+
+۱. اسم ‎.env.example‎ را به ‎.env‎ تغییر بده
+۲. ‏BOT_TOKEN (از ‎@BotFather‎) و OWNER_ID (آیدی عددی خودت، از ‎@userinfobot‎) را پر کن
+۳. در Startup: ‏App py file = app.py و Requirements file = requirements.txt
+۴. ‏Start را بزن. وقتی ربات آنلاین شود، در کنسول ‎"up as @yourbot"‎ چاپ می‌شود.
+
+اگر قبل از مرحلهٔ ۱ اجرا کنی، ربات خودش ‎.env‎ را می‌سازد و متوقف می‌شود.
+به‌روزرسانی: زیپ جدید را آپلود و روی فایل‌های قبلی Unarchive کن. ‎.env‎ و ‎data/‎ دست نمی‌خورند.
+راهنمای کامل: https://github.com/matttsys/RayZen-Pilot/blob/main/README.fa.md
