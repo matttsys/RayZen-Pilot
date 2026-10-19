@@ -161,13 +161,18 @@ class GitHubSource:
         import aiohttp
         if os.environ.get("PILOT_OFFLINE"):
             raise UpdateError("network", "offline mode")
+        # Ask for the raw bytes. If a server compresses anyway, aiohttp decodes the body and Content-Length then
+        # counts the compressed bytes, so the exact-length check only applies to identity responses. The size cap
+        # always applies to the decoded bytes, which also bounds a compression bomb.
+        headers = {"User-Agent": f"rayzen-pilot/{__version__}", "Accept": accept, "Accept-Encoding": "identity"}
         try:
-            async with aiohttp.ClientSession(headers={"User-Agent": f"rayzen-pilot/{__version__}", "Accept": accept}) as s:
+            async with aiohttp.ClientSession(headers=headers) as s:
                 async with s.get(url, timeout=aiohttp.ClientTimeout(total=120), allow_redirects=True) as r:
                     if r.status == 404:
                         raise UpdateError("no_release", "404")
                     if r.status != 200:
                         raise UpdateError("network", f"HTTP {r.status}")
+                    enc = (r.headers.get("Content-Encoding") or "identity").strip().lower()
                     cl = r.headers.get("Content-Length")
                     if cl and cl.isdigit() and int(cl) > limit:
                         raise UpdateError("too_large", cl)
@@ -176,7 +181,7 @@ class GitHubSource:
                         buf += chunk
                         if len(buf) > limit:
                             raise UpdateError("too_large", str(len(buf)))
-                    if cl and cl.isdigit() and int(cl) != len(buf):
+                    if enc == "identity" and cl and cl.isdigit() and int(cl) != len(buf):
                         raise UpdateError("download", f"{len(buf)}/{cl} bytes")
                     return bytes(buf)
         except UpdateError:
@@ -198,6 +203,14 @@ class GitHubSource:
         rel = Release(tag=str(j.get("tag_name", "")), assets=assets, prerelease=bool(j.get("prerelease")))
         man = next((n for n in assets if n.endswith("-manifest.json")), None)
         if not man or man + ".sig" not in assets:
+            # The latest stable release can predate signed releases (4.x has no manifest). That is "nothing newer",
+            # not a signing problem; an unsigned release that claims to be newer is still refused as unsigned.
+            try:
+                older = not newer(rel.tag, __version__)
+            except UpdateError:
+                older = False
+            if older:
+                raise UpdateError("not_newer", f"{rel.tag} <= {__version__}")
             raise UpdateError("no_manifest", rel.tag)
         rel.manifest_raw = await self._get(assets[man], 200_000)
         rel.sig = await self._get(assets[man + ".sig"], 10_000)

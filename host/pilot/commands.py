@@ -10,7 +10,7 @@ from pilot.ctx import Cmd
 from pilot.db import jd, jl
 from pilot.rt import RT
 from pilot.targets import Target, resolve
-from pilot.util import esc, fmt_dt, fmt_duration, looks_like_duration, norm_digits, now, parse_duration, parse_hhmm
+from pilot.util import esc, fmt_dt, fmt_duration, looks_like_duration, lsep, norm_digits, now, parse_duration, parse_hhmm
 
 
 @dataclass
@@ -314,7 +314,7 @@ async def do_unlock(c: Cmd, typ: str) -> str:
     remaining = await locks.layers(c.chat_id)
     msg = c.t("🔓 باز شد.", "🔓 Unlocked.")
     if remaining:
-        msg += "\n" + c.t("هنوز قفل: ", "Still locked: ") + "، ".join(locks.describe_layer(la, c.lang, c.tz) for la in remaining)
+        msg += "\n" + c.t("هنوز قفل: ", "Still locked: ") + lsep(c.lang).join(locks.describe_layer(la, c.lang, c.tz) for la in remaining)
     return msg
 
 
@@ -538,7 +538,7 @@ async def k_blocklist(c):
     rows = await RT.db.all("SELECT word, action FROM rz_blockwords WHERE chat_id=? ORDER BY word", (c.chat_id,))
     on = await S.get(c.chat_id, "f_words")
     head = c.t(f"کلمات ممنوع ({'روشن' if on else 'خاموش'}):", f"Blocked words ({'on' if on else 'off'}):")
-    body = "، ".join(esc(r["word"]) + (f" ({_act_label(r['action'], c.lang)})" if r["action"] not in (None, "delete") else "")
+    body = lsep(c.lang).join(esc(r["word"]) + (f" ({_act_label(r['action'], c.lang)})" if r["action"] not in (None, "delete") else "")
                      for r in rows)
     await say(c, head + "\n" + (body or "-"))
 

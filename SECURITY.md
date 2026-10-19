@@ -3,13 +3,13 @@
 ## Reporting
 
 Please report vulnerabilities privately: open a GitHub security advisory at
-https://github.com/matttsys/RayZen-Pilot/security/advisories/new, or message the maintainer on Telegram via @Rzroot.
+https://github.com/matttsys/RayZen-Pilot/security/advisories/new, or message the maintainer on Telegram via [@Rzroot](https://t.me/Rzroot).
 Don't post tokens, database files or member data in public issues.
 
 ## Secrets
 
 - `.env` holds `BOT_TOKEN`, `AI_API_KEY` and `OWNER_ID`. It is never part of a release archive and the updater never touches it.
-- If a token was ever pasted into a chat, an issue or a screenshot, revoke it: `/revoke` in @BotFather, and rotate the AI key at your provider.
+- If a token was ever pasted into a chat, an issue or a screenshot, revoke it: `/revoke` in [@BotFather](https://t.me/BotFather), and rotate the AI key at your provider.
 - The bot never prints the token or the AI key; logs and the owner panel redact them.
 
 ## Signed releases and `/update`
@@ -38,7 +38,7 @@ Verify a download yourself (Python with `cryptography` installed):
 python3 - <<'EOF'
 import base64, hashlib, json, sys
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-slug = "rayzen-pilot-v5.0.0-alpha.1-omni"
+slug = "rayzen-pilot-v5.0.0-alpha.2-omni"   # the release you downloaded
 key = Ed25519PublicKey.from_public_bytes(base64.b64decode("V5rxvn78gNnqWjT4JJ0VjuxPKS81y2lY/frxZK0AuRk="))
 raw = open(f"{slug}-manifest.json", "rb").read()
 key.verify(base64.b64decode(open(f"{slug}-manifest.json.sig", "rb").read()), raw)   # raises if forged

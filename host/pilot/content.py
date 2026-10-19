@@ -13,7 +13,7 @@ from pilot import audit, authz, confirm, locks, settings as S, tg
 from pilot.ctx import Cmd, lang_tz
 from pilot.db import jd, jl
 from pilot.rt import RT
-from pilot.util import esc, fmt_duration, now, split_buttons
+from pilot.util import esc, fmt_duration, lsep, now, split_buttons
 
 log = logging.getLogger("pilot.content")
 LINK_RE = re.compile(r"(https?://|www\.|t\.me/|telegram\.me/|telegram\.dog/|tg://join)", re.I)
@@ -202,7 +202,7 @@ async def send_greeting(chat_id: int, chat_title: str, users: list[User], kind: 
     if len(users) == 1:
         text = render(body, users[0], chat_title)
     else:
-        names = "، ".join(f'<a href="tg://user?id={u.id}">{esc(u.first_name)}</a>' for u in users[:15])
+        names = lsep(lang).join(f'<a href="tg://user?id={u.id}">{esc(u.first_name)}</a>' for u in users[:15])
         tmp = body.replace("{mention}", "{__names}").replace("{first}", "{__names}").replace("{fullname}", "{__names}")
         text = render(tmp, users[0], chat_title).replace("{__names}", names)
     media = eff["welcome_media"] if kind == "welcome" else None

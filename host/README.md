@@ -7,7 +7,7 @@ The bot for host panels that run a Python app (Pterodactyl Python egg). No insta
 ## Install from the release zip
 
 1. Create a Python 3.10+ server.
-2. Upload `rayzen-pilot-v5.0.0-alpha.1-omni-selfhost.zip` in **Files** and **Unarchive** it.
+2. Upload [`rayzen-pilot-v5.0.0-alpha.2-omni-selfhost.zip`](https://github.com/matttsys/RayZen-Pilot/releases/download/v5.0.0-alpha.2/rayzen-pilot-v5.0.0-alpha.2-omni-selfhost.zip) in **Files** and **Unarchive** it.
 3. Open the new folder, select everything and **Move** it to `../`, so `app.py` is in the root.
 4. Rename `.env.example` to `.env`, fill in `BOT_TOKEN` and `OWNER_ID`.
 5. **Startup**: App py file = `app.py`, Requirements file = `requirements.txt`. Press **Start**.
@@ -17,7 +17,7 @@ The bot for host panels that run a Python app (Pterodactyl Python egg). No insta
 | Startup variable | Value |
 |---|---|
 | Git Repo Address | `https://github.com/matttsys/RayZen-Pilot` |
-| Install Branch | the branch you want (`main` = stable) |
+| Install Branch | `main` (currently the v5 pre-release) |
 | App py file | `host/app.py` |
 | Requirements file | `host/requirements.txt` |
 

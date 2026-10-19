@@ -12,7 +12,7 @@ from pilot import audit, authz, moderation as M, settings as S, tg
 from pilot.commands import command, onoff, say, set_setting
 from pilot.ctx import Cmd
 from pilot.rt import RT
-from pilot.util import esc, fmt_dt, fmt_duration, looks_like_duration, norm_digits, num, parse_duration
+from pilot.util import esc, fmt_dt, fmt_duration, looks_like_duration, norm_digits, num, numeric_word, parse_duration
 
 MAX_LINKS = 200
 
@@ -31,7 +31,7 @@ def _parse_opts(args: list[str]) -> tuple[str, int | None, int | None]:
             expire = parse_duration(a)
             i += 1
             continue
-        if i + 1 < len(args) and looks_like_duration(a + " " + args[i + 1]):
+        if i + 1 < len(args) and numeric_word(a) and looks_like_duration(a + " " + args[i + 1]):
             expire = parse_duration(a + " " + args[i + 1])
             i += 2
             continue

@@ -13,7 +13,7 @@ from pilot.commands import command, say
 from pilot.ctx import Cmd
 from pilot.rt import RT
 from pilot.targets import Target, resolve
-from pilot.util import esc, fmt_dt, norm_digits, num
+from pilot.util import esc, fmt_dt, lsep, norm_digits, num
 
 STATUS_FA = {"creator": "سازنده", "administrator": "ادمین", "member": "عضو", "restricted": "محدود", "left": "خارج شده",
              "kicked": "بن شده"}
@@ -141,7 +141,7 @@ async def k_adminrights(c: Cmd):
         if a.status == "creator":
             rights = c.t("همهٔ دسترسی‌ها", "all rights")
         else:
-            rights = "، ".join(authz.right_label(r, c.lang) for r in authz.RIGHT_ATTR if authz.has_right(a, r)) or "-"
+            rights = lsep(c.lang).join(authz.right_label(r, c.lang) for r in authz.RIGHT_ATTR if authz.has_right(a, r)) or "-"
         anon = c.t(" · ناشناس", " · anonymous") if getattr(a, "is_anonymous", False) else ""
         title = f" «{esc(a.custom_title)}»" if getattr(a, "custom_title", None) else ""
         lines.append(f"• {esc(a.user.full_name)}{title} <code>{a.user.id}</code>{anon}\n  {rights}")

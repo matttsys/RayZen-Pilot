@@ -28,6 +28,11 @@ def num(v, lang: str) -> str:
     return fa_digits(v) if lang == "fa" else str(v)
 
 
+def lsep(lang: str) -> str:
+    """List separator: Persian comma in Persian, ", " in English."""
+    return "، " if lang == "fa" else ", "
+
+
 def now() -> float:
     return time.time()
 
@@ -71,6 +76,13 @@ def parse_duration(text: str) -> int | None:
 
 def looks_like_duration(text: str) -> bool:
     return parse_duration(text) is not None and not norm_digits(text or "").strip().isdigit()
+
+
+def numeric_word(word: str) -> bool:
+    """A word that can start a two-word duration («۲ ساعت», «دو ساعت», «نیم ساعت»). Keeps «spam 2h» or
+    «autumn 7d» from being read as one duration that swallows the first word."""
+    w = norm_digits(word or "").strip().lower()
+    return bool(w) and (w[0].isdigit() or w in _FA_NUMWORDS)
 
 
 def fmt_duration(sec: int | float | None, lang: str = "fa") -> str:

@@ -14,7 +14,7 @@ from pilot.commands import command, onoff, say, set_setting
 from pilot.ctx import Cmd, lang_tz
 from pilot.rt import RT
 from pilot.targets import resolve
-from pilot.util import esc, fmt_dt, gregorian_to_jalali, norm_digits, num, parse_hhmm, short
+from pilot.util import esc, fmt_dt, gregorian_to_jalali, lsep, norm_digits, num, parse_hhmm, short
 
 _msgs: Counter = Counter()          # (chat, user, day) -> messages
 _media: Counter = Counter()
@@ -195,7 +195,7 @@ async def summary(chat_id: int, days: int, tz: str) -> dict:
 async def stats_text(c: Cmd, days: int) -> str:
     s = await summary(c.chat_id, days, c.tz)
     nm = await names([u for u, _ in s["top"][:3]])
-    top = "، ".join(f"{link(u, nm.get(u, str(u)))} ({num(n, c.lang)})" for u, n in s["top"][:3]) or "-"
+    top = lsep(c.lang).join(f"{link(u, nm.get(u, str(u)))} ({num(n, c.lang)})" for u, n in s["top"][:3]) or "-"
     net = s["joins"] - s["leaves"]
     return c.t(
         f"📊 <b>آمار {period_label(c, days)}</b>\nپیام: {num(s['messages'], 'fa')} · اعضای فعال: {num(s['active'], 'fa')} · رسانه: {num(s['media'], 'fa')}\n"

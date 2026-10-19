@@ -7,12 +7,13 @@ For Linux servers with systemd, and for Docker. Same bot as [`host/`](../host) p
 ## Install
 
 ```bash
-unzip rayzen-pilot-v5.0.0-alpha.1-omni-selfhost.zip
-cd rayzen-pilot-v5.0.0-alpha.1-omni-selfhost
+curl -LO https://github.com/matttsys/RayZen-Pilot/releases/download/v5.0.0-alpha.2/rayzen-pilot-v5.0.0-alpha.2-omni-selfhost.zip
+unzip rayzen-pilot-v5.0.0-alpha.2-omni-selfhost.zip
+cd rayzen-pilot-v5.0.0-alpha.2-omni-selfhost
 sudo bash install.sh
 ```
 
-The installer finds Python 3.10+, creates the `rayzen` user, installs to `/opt/rayzen-pilot` with its own virtualenv, asks for the token and owner id, and starts the `rayzen-pilot` service. Unattended:
+The installer finds Python 3.10+, creates the `rayzen` user, installs to `/opt/rayzen-pilot` with its own virtualenv, asks for the token and owner id, and starts the `rayzen-pilot` service. Or from this folder after `git clone https://github.com/matttsys/RayZen-Pilot.git && cd RayZen-Pilot/vps`. Unattended:
 
 ```bash
 sudo BOT_TOKEN=... OWNER_ID=... AI_API_KEY=... bash install.sh

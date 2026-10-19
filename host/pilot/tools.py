@@ -10,7 +10,7 @@ from telegram import ChatPermissions
 from pilot import audit, authz, locks, logs, settings as S, tg
 from pilot.db import CHAT_TABLES, jd, jl
 from pilot.rt import RT
-from pilot.util import esc, fmt_dt, fmt_duration, now, rule_label, short
+from pilot.util import esc, fmt_dt, fmt_duration, lsep, now, rule_label, short
 
 log = logging.getLogger("pilot.tools")
 NEEDED = [("delete", "فیلترها، /del، /purge، /purgeword", "filters, /del, /purge, /purgeword"),
@@ -92,7 +92,7 @@ async def health_text(chat_id: int, lang: str, tz: str, is_forum: bool) -> str:
         if sm:
             L.append(("اسلومود: " if fa else "Slow mode: ") + fmt_duration(sm, lang))
     lays = await locks.layers(chat_id)
-    L.append(("قفل‌ها: " if fa else "Locks: ") + ("، ".join(locks.describe_layer(la, lang, tz) for la in lays) if lays else ("هیچ" if fa else "none")))
+    L.append(("قفل‌ها: " if fa else "Locks: ") + (lsep(lang).join(locks.describe_layer(la, lang, tz) for la in lays) if lays else ("هیچ" if fa else "none")))
     night = await RT.db.one("SELECT * FROM rz_night WHERE chat_id=? AND enabled=1", (chat_id,))
     if night:
         L.append(f"{'شبانه' if fa else 'Night'}: {night['start']}-{night['end']}")
@@ -165,12 +165,12 @@ async def digest_text(chat_id: int, lang: str, tz: str, hours: int = 24, ai_note
     row = await RT.db.one("SELECT title FROM rz_chats WHERE chat_id=?", (chat_id,))
     L = [f"<b>{'گزارش' if fa else 'Report'} {hours} {'ساعت' if fa else 'h'}</b> · {esc((row or {}).get('title') or chat_id)}"]
     if f["actions"]:
-        L.append("• " + "، ".join(f"{audit.action_name(k, lang)}: {v}" for k, v in sorted(f["actions"].items(), key=lambda x: -x[1])))
+        L.append("• " + lsep(lang).join(f"{audit.action_name(k, lang)}: {v}" for k, v in sorted(f["actions"].items(), key=lambda x: -x[1])))
     else:
         L.append("• " + ("کاری انجام نشده." if fa else "No actions."))
     if f["auto_delete_rules"]:
         L.append("• " + ("حذف خودکار: " if fa else "Auto-deletes: ") +
-                 "، ".join(f"{S.label(k, lang) if k in S.SPECS else k}: {v}" for k, v in f["auto_delete_rules"].items()))
+                 lsep(lang).join(f"{S.label(k, lang) if k in S.SPECS else k}: {v}" for k, v in f["auto_delete_rules"].items()))
     if f["failed_actions"]:
         L.append(f"• {'ناموفق' if fa else 'Failed'}: {f['failed_actions']}")
     if f["settings_changes"]:
