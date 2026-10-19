@@ -52,6 +52,15 @@ async def tick(context=None) -> None:
     except Exception:  # noqa: BLE001
         RT.tick_stats["errors"] += 1
         log.exception("periodic step failed")
+    from pilot import hooks
+    for name, sec, fn in hooks.PERIODIC:
+        if every("hook:" + name, sec):
+            try:
+                await fn()
+            except Exception:  # noqa: BLE001
+                RT.tick_stats["errors"] += 1
+                log.exception("periodic hook %s failed", name)
+                await audit.error(None, "tick:" + name, "exception (see process log)")
 
 
 async def _captcha() -> None:
@@ -197,6 +206,10 @@ async def reminders_due() -> None:
         head = "⏰ "
         if r["scope"] == "group":
             out = await tg.send(r["chat_id"], head + esc(r["text"]), thread_id=r["thread_id"])
+            status = "sent" if out.ok else "failed"
+        elif r["scope"] == "here":
+            mention = f'<a href="tg://user?id={r["user_id"]}">⏱</a> '
+            out = await tg.send(r["chat_id"], mention + esc(r["text"]), thread_id=r["thread_id"])
             status = "sent" if out.ok else "failed"
         else:
             out = await tg.send(r["user_id"], head + esc(r["text"]), rows=snooze)

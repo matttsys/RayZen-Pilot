@@ -178,6 +178,23 @@ async def repair(chat_id: int, requester: int, lang: str) -> tuple[bool, str]:
     return await verify_destination(chat_id, r["dest_id"], r["topic_id"], requester, lang)
 
 
+async def retest(chat_id: int, lang: str) -> tuple[bool, str]:
+    """Owner repair: resend a test entry to the already verified destination. The destination is not changed,
+    so no new authority check is needed; success reactivates the route and releases held entries."""
+    fa = lang == "fa"
+    r = await route(chat_id)
+    if not r or not r["dest_id"] or r["status"] == "disabled":
+        return False, "لاگ تنظیم نشده." if fa else "Logs not set."
+    out = await _deliver(r, ("🔧 آزمایش لاگ\n" if fa else "🔧 Log test\n") + await header(chat_id))
+    if not out.ok:
+        await RT.db.run("UPDATE rz_log_routes SET last_error=? WHERE chat_id=?", (out.desc[:300], chat_id))
+        return False, ("❌ نرسید: " if fa else "❌ Not delivered: ") + out.desc[:150]
+    await RT.db.run("UPDATE rz_log_routes SET status='active', last_ok=?, last_error=NULL, fail_count=0, notified=0 WHERE chat_id=?",
+                    (now(), chat_id))
+    await RT.db.run("UPDATE rz_log_queue SET status='pending', next_try=? WHERE chat_id=? AND status='held'", (now(), chat_id))
+    return True, "✅ رسید؛ مسیر فعال شد." if fa else "✅ Delivered; route active."
+
+
 _owner_last: list[float] = []
 
 

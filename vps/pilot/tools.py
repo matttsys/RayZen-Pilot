@@ -287,7 +287,7 @@ async def apply_config(chat_id: int, new: dict, actor: int, sections: set[str], 
         done.append(f"answers:{len(new['answers'])}")
     if "blockwords" in sections:
         for w in new["blockwords"]:
-            await RT.db.run("INSERT OR IGNORE INTO rz_blockwords VALUES(?,?)", (chat_id, w))
+            await RT.db.run("INSERT OR IGNORE INTO rz_blockwords(chat_id,word) VALUES(?,?)", (chat_id, w))
         done.append(f"blockwords:{len(new['blockwords'])}")
     if "night" in sections and new["night"]:
         from pilot.planner import set_night
@@ -364,7 +364,11 @@ DATA_TABLES = [("rz_settings", "تنظیمات", "settings"), ("rz_user_chats", 
                ("rz_tickets", "تیکت‌ها", "tickets"), ("rz_answers", "پاسخ‌ها", "answers"),
                ("rz_announcements", "اطلاعیه‌ها", "announcements"), ("rz_reminders", "یادآورها", "reminders"),
                ("rz_events", "رویدادها", "events"), ("rz_join_requests", "درخواست‌های عضویت", "join requests"),
-               ("rz_errors", "خطاها", "errors"), ("rz_msg_index", "نمایهٔ ۴۸ ساعته (/purgeword)", "48h index (/purgeword)")]
+               ("rz_errors", "خطاها", "errors"), ("rz_msg_index", "نمایهٔ ۴۸ ساعته (/purgeword)", "48h index (/purgeword)"),
+               ("rz_activity", "شمار روزانهٔ پیام اعضا", "daily message counters"),
+               ("rz_member_events", "ورود و خروج‌های دیده‌شده", "observed joins/leaves"),
+               ("rz_invites", "لینک‌های دعوت", "invite links"), ("rz_afk", "حالت غیبت", "AFK"),
+               ("rz_ai_memory", "حافظهٔ دستیار (حداکثر ۱ روز)", "assistant memory (max 1 day)")]
 
 
 async def data_policy_text(chat_id: int, lang: str) -> str:
@@ -415,6 +419,11 @@ async def user_data(user_id: int) -> dict:
         "reminders": await q("SELECT id,text,due,status FROM rz_reminders WHERE user_id=?", (user_id,)),
         "rsvps": await q("SELECT event_id,status,checked_in FROM rz_rsvps WHERE user_id=?", (user_id,)),
         "purgeword_index_48h": await RT.db.val("SELECT COUNT(*) FROM rz_msg_index WHERE sender_id=?", (user_id,), 0),
+        "name_history": await q("SELECT name,seen_at FROM rz_name_history WHERE user_id=?", (user_id,)),
+        "activity_counters": await q("SELECT chat_id,day,msgs,media FROM rz_activity WHERE user_id=? ORDER BY day", (user_id,)),
+        "join_leave_events": await q("SELECT chat_id,ts,kind FROM rz_member_events WHERE user_id=?", (user_id,)),
+        "afk": await q("SELECT chat_id,reason,since FROM rz_afk WHERE user_id=?", (user_id,)),
+        "assistant_memory_turns": await RT.db.val("SELECT COUNT(*) FROM rz_ai_memory WHERE user_id=?", (user_id,), 0),
     }
 
 
@@ -429,6 +438,12 @@ async def forget_user(user_id: int) -> list[str]:
                            ("UPDATE rz_tickets SET text='[removed by user]' WHERE user_id=? AND status='closed'", "closed_ticket_text"),
                            ("DELETE FROM rz_join_requests WHERE user_id=? AND status<>'pending'", "join_requests"),
                            ("DELETE FROM rz_msg_index WHERE sender_id=?", "purgeword_index"),
+                           ("DELETE FROM rz_name_history WHERE user_id=?", "name_history"),
+                           ("DELETE FROM rz_activity WHERE user_id=?", "activity_counters"),
+                           ("DELETE FROM rz_member_events WHERE user_id=?", "join_leave_events"),
+                           ("UPDATE rz_member_events SET by_user=NULL WHERE by_user=?", "added_by_refs"),
+                           ("DELETE FROM rz_afk WHERE user_id=?", "afk"),
+                           ("DELETE FROM rz_ai_memory WHERE user_id=?", "assistant_memory"),
                            ("DELETE FROM rz_users WHERE user_id=?", "profile_index")):
             n = c.execute(sql, (user_id,)).rowcount
             if n:

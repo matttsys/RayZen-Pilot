@@ -1,79 +1,45 @@
-<p align="center">
-  <img src="../assets/logo-256.png" width="96" alt="RayZen Pilot logo">
-</p>
+<h1 align="center">RayZen Pilot · VPS and Docker</h1>
 
-<h1 align="center">RayZen Pilot · VPS build</h1>
+<p align="center"><a href="../README.md">Full guide</a> · <a href="../README.fa.md">راهنمای کامل</a> · <a href="#فارسی">فارسی</a></p>
 
-<p align="center">
-  <a href="https://github.com/matttsys/RayZen-Pilot/releases/latest/download/rayzen-pilot-vps.zip"><b>Download rayzen-pilot-vps.zip</b></a> ·
-  <a href="../README.md#vps">Full guide</a> ·
-  <a href="#فارسی">فارسی</a>
-</p>
-
-For Linux servers with systemd, and for Docker. Same bot as [`host/`](../host), plus an installer, a systemd service and the `rayzen` command.
+For Linux servers with systemd, and for Docker. Same bot as [`host/`](../host) plus an installer, a hardened systemd unit and the `rayzen` command.
 
 ## Install
 
 ```bash
-git clone https://github.com/matttsys/RayZen-Pilot.git
-cd RayZen-Pilot/vps
+unzip rayzen-pilot-v5.0.0-alpha.1-omni-selfhost.zip
+cd rayzen-pilot-v5.0.0-alpha.1-omni-selfhost
 sudo bash install.sh
 ```
 
-The installer finds or installs Python 3.10+, creates a `rayzen` user, installs to `/opt/rayzen-pilot`, asks for the bot token and owner id, then starts the `rayzen-pilot` service.
-
-Unattended:
+The installer finds Python 3.10+, creates the `rayzen` user, installs to `/opt/rayzen-pilot` with its own virtualenv, asks for the token and owner id, and starts the `rayzen-pilot` service. Unattended:
 
 ```bash
-sudo BOT_TOKEN=123456:ABC... OWNER_ID=111222333 AI_API_KEY=sk-... bash install.sh
-```
-
-No git on the server? The release zip has the same files:
-
-```bash
-curl -LO https://github.com/matttsys/RayZen-Pilot/releases/latest/download/rayzen-pilot-vps.zip
-unzip rayzen-pilot-vps.zip && cd rayzen-pilot && sudo bash install.sh
+sudo BOT_TOKEN=... OWNER_ID=... AI_API_KEY=... bash install.sh
 ```
 
 ## Manage
 
-| Command | What it does |
+| Command | |
 |---|---|
-| `rayzen status` | Running or stopped, uptime, bot username |
-| `rayzen logs -f` | Follow the log |
-| `rayzen restart` | Restart the service |
-| `rayzen config` | Ask the setup questions again |
-| `rayzen backup` | Database and `.env` to `/opt/rayzen-pilot/backups` |
-| `rayzen update <zip or folder>` | Install a new version, keep `.env` and data |
-| `rayzen uninstall` | Remove the service |
+| `rayzen status` | running or stopped, uptime, bot username |
+| `rayzen logs -f` | follow the log |
+| `rayzen restart` | restart the service |
+| `rayzen config` | ask the setup questions again |
+| `rayzen backup` | database and `.env` to `/opt/rayzen-pilot/backups` |
+| `rayzen update <zip or folder>` | install a release from the shell, keep `.env` and data, run pip |
+| `rayzen uninstall` | remove the service |
 
-## Update
-
-```bash
-cd RayZen-Pilot
-git pull
-sudo rayzen update vps
-```
+`rayzen update` installs whatever archive you give it. Verify downloads first (see [SECURITY.md](../SECURITY.md)), or use `/update` in Telegram, which checks the signature itself.
 
 ## Docker
 
 ```bash
-cd RayZen-Pilot/vps
-python3 configure.py        # or: cp .env.example .env && nano .env
-docker compose up -d
+cp .env.example .env    # or: python3 configure.py
+docker compose up -d --build
 ```
 
-## Files
-
-| Path | |
-|---|---|
-| `install.sh` | systemd installer |
-| `configure.py` | Interactive `.env` setup. Checks the token with Telegram. |
-| `deploy/` | systemd unit and the `rayzen` command |
-| `Dockerfile`, `docker-compose.yml` | Docker setup. Data lives in the `pilot-data` volume. |
-| `app.py` | Entry point and supervisor |
-| `pilot/`, `shared/` | The bot |
-| `.env.example` | Settings template |
+Data lives in the `pilot-data` volume. The code inside the image isn't writable by the bot, so `/update` can verify a release but not install it; rebuild the image instead.
 
 ---
 
@@ -81,36 +47,10 @@ docker compose up -d
 
 ## فارسی
 
-نسخهٔ مخصوص سرور لینوکس با systemd و داکر. ربات همان ربات پوشهٔ ‎`host/`‎ است، به‌اضافهٔ نصب‌کننده، سرویس systemd و دستور ‎`rayzen`‎.
+برای سرور لینوکس با systemd و داکر. نصب: زیپ را باز کنید، وارد پوشه شوید و ⁧`sudo bash install.sh`⁩ را اجرا کنید. نصب‌کننده کاربر `rayzen` و virtualenv می‌سازد، توکن را می‌پرسد و سرویس را روشن می‌کند.
 
-### نصب
+دستورها: `rayzen status`، `rayzen logs -f`، `rayzen restart`، `rayzen backup`، `rayzen update فایل.zip`.
 
-</div>
-
-```bash
-git clone https://github.com/matttsys/RayZen-Pilot.git
-cd RayZen-Pilot/vps
-sudo bash install.sh
-```
-
-<div dir="rtl">
-
-نصب‌کننده پایتون 3.10 به بالا را پیدا یا نصب می‌کند، کاربر ‎`rayzen`‎ را می‌سازد، ربات را در ‎`/opt/rayzen-pilot`‎ نصب می‌کند، توکن و آیدی مالک را می‌پرسد و سرویس ‎`rayzen-pilot`‎ را اجرا می‌کند.
-
-اگر روی سرور git نداری، زیپ ‎[rayzen-pilot-vps.zip](https://github.com/matttsys/RayZen-Pilot/releases/latest/download/rayzen-pilot-vps.zip)‎ همین فایل‌ها را دارد.
-
-### به‌روزرسانی
-
-</div>
-
-```bash
-cd RayZen-Pilot
-git pull
-sudo rayzen update vps
-```
-
-<div dir="rtl">
-
-راهنمای کامل: [README.fa.md](../README.fa.md#fa-install)
+⁧`rayzen update`⁩ هر فایلی بدهید نصب می‌کند؛ اول امضا را بررسی کنید (⁧[SECURITY.md](../SECURITY.md)⁩) یا از `/update` در تلگرام استفاده کنید که خودش امضا را چک می‌کند. در داکر برای آپدیت ایمیج را دوباره بسازید.
 
 </div>

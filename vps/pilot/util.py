@@ -147,6 +147,11 @@ def next_local(h: int, m: int, tz: str, after: float | None = None, weekday: int
     return cand.timestamp()
 
 
+def _later(t: list[str], i: int) -> int:
+    """Skip a trailing 'later' word after a duration: «۱۰ دقیقه دیگه»."""
+    return i + 1 if i < len(t) and t[i].lower() in ("دیگه", "دیگر", "بعد", "later") else i
+
+
 def parse_when(tokens: list[str], tz: str) -> tuple[float | None, str | None, int]:
     """Parse a leading time spec from tokens. Returns (unix_ts, rule, n_tokens_consumed).
     Supported: '2h' / 'in 2h' / '+2h', 'HH:MM', 'tomorrow HH:MM' / 'فردا HH:MM',
@@ -159,9 +164,12 @@ def parse_when(tokens: list[str], tz: str) -> tuple[float | None, str | None, in
     elif i < len(t) and t[i].lower() in ("weekly", "هفتگی"):
         rule, i = "weekly", i + 1
     elif i + 1 < len(t) and t[i].lower() in ("every", "هر"):
-        d = parse_duration(t[i + 1])
+        if t[i + 1].isdigit() and i + 2 < len(t) and parse_duration(f"{t[i + 1]} {t[i + 2]}"):   # "هر ۶ ساعت"
+            d, used = parse_duration(f"{t[i + 1]} {t[i + 2]}"), i + 3
+        else:
+            d, used = parse_duration(t[i + 1]), i + 2
         if d and d >= 600:
-            return now() + d, f"every:{d}", i + 2
+            return now() + d, f"every:{d}", used
         return None, None, 0
     if i < len(t) and t[i].lower() in ("in", "بعد"):
         i += 1
@@ -171,7 +179,11 @@ def parse_when(tokens: list[str], tz: str) -> tuple[float | None, str | None, in
     if rule == "once":
         d = parse_duration(tok) if not parse_hhmm(tok) else None
         if d and not tok.isdigit():
-            return now() + d, "once", i + 1
+            return now() + d, "once", _later(t, i + 1)
+        if tok.isdigit() and i + 1 < len(t):                     # "۱۰ دقیقه" / "2 hours" as two words
+            d = parse_duration(f"{tok} {t[i + 1]}")
+            if d:
+                return now() + d, "once", _later(t, i + 2)
     day_shift = 0
     if tok.lower() in ("tomorrow", "فردا"):
         day_shift, i = 1, i + 1

@@ -106,8 +106,12 @@ class Cmd:
         return self.chat_type == "private"
 
     async def say(self, text: str, rows=None, reply: bool = True) -> tg.Out:
-        return await tg.send(self.chat_id, text, rows=rows, thread_id=self.thread_id if self.is_forum else None,
-                             reply_to=self.message_id if reply and self.message_id else None)
+        out = await tg.send(self.chat_id, text, rows=rows, thread_id=self.thread_id if self.is_forum else None,
+                            reply_to=self.message_id if reply and self.message_id else None)
+        if out.ok and not rows and self.is_group and self.source in ("cmd", "fa"):
+            from pilot import guards
+            await guards.schedule_cleanup(self.chat_id, out.value)
+        return out
 
     def to_payload(self) -> dict:
         d = asdict(self)
@@ -129,7 +133,7 @@ async def lang_tz(chat_id: int) -> tuple[str, str]:
     return eff["lang"][0] or "fa", eff["tz"][0] or RT.cfg.tz
 
 
-async def build(update: Update, name: str = "", text: str | None = None, source: str = "cmd") -> Cmd | None:
+async def build(update: Update, name: str = "", text: str | None = None, source: str = "cmd", html_skip: int = 1) -> Cmd | None:
     m = update.effective_message
     chat = update.effective_chat
     if chat is None:
@@ -140,8 +144,8 @@ async def build(update: Update, name: str = "", text: str | None = None, source:
     rest_html = ""
     if m is not None and source == "cmd":
         th = (m.text_html if m.text else (m.caption_html if m.caption else "")) or ""
-        hp = th.split(None, 1)
-        rest_html = hp[1] if len(hp) > 1 else ""
+        hp = th.split(None, html_skip)
+        rest_html = hp[html_skip] if len(hp) > html_skip else ""
     user = update.effective_user
     anon = False
     actor_id = user.id if user else None

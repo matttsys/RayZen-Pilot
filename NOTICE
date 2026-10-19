@@ -1,0 +1,40 @@
+RayZen Pilot
+Copyright (C) 2026 matttsys
+Original project: https://github.com/matttsys/RayZen-Pilot
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU Affero General Public License as published by the Free Software Foundation, version 3
+(see LICENSE). It is distributed WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Attribution
+-----------
+If you redistribute this program or a modified version, keep this NOTICE file and the copyright
+notices, and state that your version is based on RayZen Pilot by matttsys with a link to
+https://github.com/matttsys/RayZen-Pilot (AGPL-3.0 sections 4, 5 and 7(b)).
+
+If you run a modified version as a bot that people use over Telegram, AGPL-3.0 section 13 requires
+you to offer those users the corresponding source of your version. The bot shows a source link on
+/start; set SOURCE_URL in .env to the place where your modified source is published.
+
+History
+-------
+Versions 4.0.0 and 4.1.0 were released under the MIT License (with attribution). Copies of those
+versions keep that license. Version 5.0.0 "Omni" and later are released under AGPL-3.0.
+
+Editions
+--------
+The self-hosted and owner-hosted archives are built from the same source. The owner-hosted archive
+adds pilot/gate.py (a channel-membership request on private /start). That file is under the same
+license and is included in the owner-hosted archive as source.
+
+Third-party software
+--------------------
+Installed from PyPI by requirements.txt, not bundled in the archives:
+  python-telegram-bot   LGPL-3.0-only          https://github.com/python-telegram-bot/python-telegram-bot
+  aiohttp               Apache-2.0 AND MIT     https://github.com/aio-libs/aiohttp
+  cryptography          Apache-2.0 OR BSD-3    https://github.com/pyca/cryptography
+  tzdata                Apache-2.0             https://github.com/python/tzdata
+
+The names "RayZen" and "RayZen Pilot" and the logo are covered by TRADEMARKS.md, which is separate
+from the copyright license.

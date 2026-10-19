@@ -93,14 +93,15 @@ async def note(m, edited: bool = False) -> None:
     ts = m.date.timestamp() if m.date else now()
     if now() - ts > WINDOW or not await enabled(chat.id):
         return
-    toks = sorted({t[:64] for t in tokens(text[:4000])})[:MAX_WORDS] if text and not text.lstrip().startswith("/") else []
-    if not toks:
+    if text.lstrip().startswith("/"):
         if edited:
             await RT.db.run("DELETE FROM rz_msg_index WHERE chat_id=? AND message_id=?", (chat.id, m.message_id))
         return
+    # messages without text (media, stickers) are kept with sender and time only, for /purgeuser
+    toks = sorted({t[:64] for t in tokens(text[:4000])})[:MAX_WORDS] if text else []
     sender = m.sender_chat.id if m.sender_chat is not None else (u.id if u is not None else None)
     await RT.db.run("INSERT OR REPLACE INTO rz_msg_index(chat_id,message_id,sender_id,ts,words) VALUES(?,?,?,?,?)",
-                    (chat.id, m.message_id, sender, ts, " " + " ".join(toks) + " "))
+                    (chat.id, m.message_id, sender, ts, (" " + " ".join(toks) + " ") if toks else " "))
 
 
 async def forget_ids(chat_id: int, ids: list[int]) -> None:

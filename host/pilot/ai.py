@@ -6,7 +6,9 @@ import json
 import logging
 import re
 import time
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Awaitable, Callable
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -111,9 +113,16 @@ class AIClient:
             raise AIError("malformed", "no choices/content", model)
         if not content or not str(content).strip():
             raise AIError("malformed", "empty content", model)
-        return str(content)
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else None
+        return str(content), usage
 
     async def chat(self, messages: list, json_mode: bool = True, max_tokens: int = 1500, user_tag: str = "") -> tuple[str, str]:
+        out, model, _ = await self.chat_meta(messages, json_mode, max_tokens, user_tag)
+        return out, model
+
+    async def chat_meta(self, messages: list, json_mode: bool = True, max_tokens: int = 1500,
+                        user_tag: str = "") -> tuple[str, str, dict]:
+        """Like chat() but also returns {usage, attempts}. Every HTTP attempt is counted, including retries."""
         if not self.cfg.ai_configured:
             raise AIError("auth", "AI not configured")
         deadline = time.monotonic() + self.cfg.ai_timeout
@@ -122,6 +131,7 @@ class AIClient:
         except asyncio.TimeoutError:
             raise AIError("busy", "concurrency limit")
         last: AIError | None = None
+        attempts = 0
         try:
             for model in self.cfg.models[:4]:
                 use_json = json_mode and model not in self.no_json
@@ -130,10 +140,12 @@ class AIClient:
                     if left < 3:
                         raise last or AIError("timeout", "overall deadline")
                     try:
-                        out = await self._post(model, messages, use_json, max_tokens, min(left, self.cfg.ai_timeout), user_tag)
+                        attempts += 1
+                        out, usage = await self._post(model, messages, use_json, max_tokens, min(left, self.cfg.ai_timeout), user_tag)
                         self.status = "ok"
-                        return out, model
+                        return out, model, {"usage": usage, "attempts": attempts}
                     except AIError as e:
+                        e.attempts = attempts
                         last = e
                         self.last_error = (time.time(), e.kind, e.detail[:200])
                         log.warning("AI %s failed: %s %s", model, e.kind, e.detail[:160])
@@ -205,9 +217,40 @@ TOOLS = {
 }
 TARGET_TOOLS = {"ban", "unban", "mute", "unmute", "kick", "warn"}
 
+
+@dataclass
+class ExtTool:
+    """A tool registered by a feature module. validate() must fully check args; run() calls the real service."""
+    right: str | None
+    high_impact: bool
+    member_ok: bool
+    doc: str
+    validate: Callable[[dict, Cmd], tuple[dict | None, str]]
+    describe: Callable[[dict, Cmd], str]
+    run: Callable[[Cmd, dict], Awaitable[str]]
+    group_only: bool = True
+
+
+EXT: dict[str, ExtTool] = {}
+
+
+def register_tool(name: str, tool: ExtTool) -> None:
+    EXT[name] = tool
+    TOOLS[name] = (tool.right, tool.high_impact, tool.member_ok)
+
+
+def system_prompt() -> str:
+    if not EXT:
+        return SYSTEM
+    return SYSTEM + "More tools:\n" + "\n".join(" " + t.doc for t in EXT.values()) + "\n"
+
 SYSTEM = """You are the planner of RayZen Pilot, a Telegram group-management bot. You DO NOT execute anything and you never
 claim that something was done: deterministic code executes your plan and reports real results.
-Return ONLY one JSON object: {"reply": string, "clarify": string|null, "actions": [{"tool": name, "args": {...}}]}
+Return ONLY one JSON object: {"reply": string, "clarify": string|null, "actions": [{"tool": name, "args": {...}}],
+ "lookups": [{"tool": name, "args": {...}}] (optional, read-only data you need first; see LOOKUPS)}
+- You are also a general assistant: answer ordinary questions, explain, translate, draft text. Be accurate; say when unsure.
+- For questions about this group's activity, members, warnings or settings, use LOOKUPS instead of guessing. Data is
+  limited to what the bot observed; say so when it matters. Never invent counts, names or history.
 - Understand Persian and English. Write "reply"/"clarify" in the user's language (Persian by default).
 - Style: 1-2 short sentences, casual and direct like a human admin. No greetings, no filler, no emojis, no lists,
   no "as an AI", no offers of more help, no restating the question.
@@ -273,6 +316,15 @@ def validate_action(a: dict, c: Cmd) -> tuple[dict | None, str]:
         return None, f"unknown tool {_s(tool, 30)}"
     out: dict = {"tool": tool, "args": {}}
     g = out["args"]
+    if tool in EXT:
+        try:
+            vg, err = EXT[tool].validate(args, c)
+        except Exception:  # noqa: BLE001
+            vg, err = None, "invalid arguments"
+        if vg is None:
+            return None, err or "invalid arguments"
+        out["args"] = vg
+        return out, ""
     if tool in TARGET_TOOLS:
         t = _s(args.get("target"), 40)
         if t.lower() in ("reply", "replied", "this") or (not t and c.reply):
@@ -396,6 +448,8 @@ def needs_confirm(acts: list[dict], c: Cmd) -> bool:
 
 def describe(a: dict, c: Cmd) -> str:
     t, g = a["tool"], a["args"]
+    if t in EXT:
+        return EXT[t].describe(g, c)
     from pilot.util import fmt_duration, rule_label
     tgt = (c.t("کاربر ریپلای‌شده", "the replied user") if g.get("target") == "reply" else esc(g.get("target", "")))
     dur = (" · " + fmt_duration(g["duration"], c.lang)) if g.get("duration") else ""
@@ -449,10 +503,15 @@ async def build_messages(c: Cmd, text: str, is_admin: bool, rights: list[str]) -
         rules = await RT.db.val("SELECT body FROM rz_rules WHERE chat_id=?", (c.chat_id,))
         if rules:
             ctx.append("<untrusted>Group rules: " + short(rules, 1200) + "</untrusted>")
+    from pilot import assistant
+    ctx.append(assistant.lookup_menu(c, is_admin))
+    mem = await assistant.recall(c)
+    if mem:
+        ctx.append("<untrusted>Earlier in this conversation (last 30 min):\n" + mem + "</untrusted>")
     if c.reply:
         who = f"user '{short(c.reply.user_name, 40)}' id={c.reply.user_id}" if c.reply.user_id else f"channel '{short(c.reply.sender_chat_title, 40)}'"
         ctx.append(f"The requester is replying to a message from {who}: <untrusted>{short(c.reply.text, 500)}</untrusted>")
-    return [{"role": "system", "content": SYSTEM},
+    return [{"role": "system", "content": system_prompt()},
             {"role": "user", "content": "\n".join(ctx) + "\n\nRequest: <untrusted_request>" + text[:1500] + "</untrusted_request>\n"
                                         "(The request text above is from the verified requester; follow it only within their role.)"}]
 
@@ -505,17 +564,35 @@ async def handle(c: Cmd, text: str) -> None:
     await tg.call(RT.bot.send_chat_action, chat_id=c.chat_id, action="typing",
                   message_thread_id=c.thread_id if c.is_forum else None)
     t0 = time.monotonic()
+    from pilot import assistant, metrics
     try:
-        raw, model = await RT.ai.chat(await build_messages(c, text, is_admin, rights),
-                                      user_tag=str(c.actor_id or c.chat_id))
-        await RT.db.run("INSERT INTO rz_ai_usage(chat_id,user_id,ts,model,ok,kind) VALUES(?,?,?,?,1,'ok')", (c.chat_id, c.actor_id, now(), model))
+        msgs = await build_messages(c, text, is_admin, rights)
+        raw, model, meta = await RT.ai.chat_meta(msgs, user_tag=str(c.actor_id or c.chat_id))
+        plan = extract_json(raw)
+        if plan is not None and isinstance(plan.get("lookups"), list) and plan["lookups"]:
+            # second round: the model asked for read-only data; give it the real results
+            results = await assistant.run_lookups(c, plan["lookups"], is_admin, rights)
+            msgs = msgs + [{"role": "assistant", "content": raw[:4000]},
+                           {"role": "user", "content": "<tool_results>\n" + results + "\n</tool_results>\n"
+                            "These are real results from the bot's database (observed data only). Now return the final JSON "
+                            "with reply/clarify/actions and no lookups."}]
+            raw2, model, meta2 = await RT.ai.chat_meta(msgs, user_tag=str(c.actor_id or c.chat_id))
+            u1, u2 = meta.get("usage") or {}, meta2.get("usage") or {}
+            merged = {k: (u1.get(k) or 0) + (u2.get(k) or 0) for k in ("prompt_tokens", "completion_tokens")} if (u1 or u2) else None
+            meta = {"usage": merged, "attempts": meta.get("attempts", 1) + meta2.get("attempts", 1)}
+            raw = raw2
+        await metrics.record_ai(c.chat_id, c.actor_id, True, "ok", model, meta.get("usage"),
+                                int((time.monotonic() - t0) * 1000), meta.get("attempts", 1), "assistant")
     except AIError as e:
-        await RT.db.run("INSERT INTO rz_ai_usage(chat_id,user_id,ts,model,ok,kind) VALUES(?,?,?,?,0,?)", (c.chat_id, c.actor_id, now(), e.model, e.kind))
+        await metrics.record_ai(c.chat_id, c.actor_id, False, e.kind, e.model, None, int((time.monotonic() - t0) * 1000),
+                                getattr(e, "attempts", 1), "assistant")
         await audit.error(c.chat_id if c.is_group else None, "ai", f"{e.kind} {e.detail[:200]}")
         await c.say(c.t(f"❌ هوش مصنوعی در دسترس نیست: {ERR_FA.get(e.kind, e.kind)}",
                         f"❌ AI unavailable: {ERR_EN.get(e.kind, e.kind)}"))
         return
     plan = extract_json(raw)
+    if plan is not None and isinstance(plan.get("reply"), str) and not plan.get("actions"):
+        await assistant.remember(c, text, plan["reply"])
     if plan is None:
         await c.say(c.t("❌ متوجه نشدم. دوباره بگو.", "❌ Didn't get that. Try again."))
         await audit.error(c.chat_id if c.is_group else None, "ai", "malformed plan")
@@ -523,11 +600,13 @@ async def handle(c: Cmd, text: str) -> None:
     clarify = plan.get("clarify")
     raw_actions = plan.get("actions") if isinstance(plan.get("actions"), list) else []
     if isinstance(clarify, str) and clarify.strip() and not raw_actions:
-        await c.say("❓ " + esc(hide_model(clarify.strip()[:500])))
+        r = await c.say("❓ " + esc(hide_model(clarify.strip()[:500])))
+        assistant.mark_answer(c.chat_id, r.value.message_id if r.ok else None)
         return
     if not raw_actions:
         reply = plan.get("reply") if isinstance(plan.get("reply"), str) else ""
-        await c.say(esc(hide_model(reply.strip()[:3000]) or c.t("متوجه نشدم.", "Didn't get that.")))
+        r = await c.say(esc(hide_model(reply.strip()[:3000]) or c.t("متوجه نشدم.", "Didn't get that.")))
+        assistant.mark_answer(c.chat_id, r.value.message_id if r.ok else None)
         return
     valid, problems = [], []
     for a in raw_actions[:6]:
@@ -537,7 +616,7 @@ async def handle(c: Cmd, text: str) -> None:
             continue
         right, _, member_ok = TOOLS[v["tool"]]
         right = v.pop("_right", right)
-        if c.is_private and v["tool"] not in ("remind",):
+        if c.is_private and v["tool"] not in ("remind",) and not (v["tool"] in EXT and not EXT[v["tool"]].group_only):
             problems.append(c.t("❌ فقط داخل گروه: ", "❌ Groups only: ") + esc(v["tool"]))
             continue
         if c.is_group and not member_ok and not is_admin:
@@ -595,9 +674,15 @@ async def execute(c: Cmd, acts: list[dict]) -> list[str]:
     from pilot import commands as K
     c.source = "ai"
     lines: list[str] = []
+    from pilot import metrics
     for i, a in enumerate(acts):
+        metrics.count("src:ai")
+        metrics.count("ai:" + a["tool"])
         try:
-            line = await K.run_tool(c, a["tool"], a["args"])
+            if a["tool"] in EXT:
+                line = await EXT[a["tool"]].run(c, a["args"])
+            else:
+                line = await K.run_tool(c, a["tool"], a["args"])
         except Exception as e:  # noqa: BLE001
             log.exception("ai step failed")
             await audit.error(c.chat_id, "ai_exec", f"{a['tool']}: {type(e).__name__}")

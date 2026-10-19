@@ -96,6 +96,23 @@ _s("retention_days", "int", 90, "privacy", "روز نگهداری", "Retention d
 _s("keep_excerpt", "bool", False, "privacy", "ذخیرهٔ متن پیام در پرونده", "Keep message text in cases")
 _s("word_index", "bool", True, "privacy", "نمایهٔ ۴۸ ساعته برای /purgeword", "48h index for /purgeword")
 _s("announce_topic", "int", None, "topics", "تاپیک اطلاعیه‌ها", "Announcement topic")
+# 5.0: newcomer and spam guards (all off by default)
+_s("probation_on", "bool", False, "protect", "دورهٔ آزمایشی عضو جدید", "Newcomer probation", enforce=True)
+_s("probation_h", "int", 24, "protect", "ساعت دورهٔ آزمایشی", "Probation hours", lo=1, hi=720)
+_s("tabchi_on", "bool", False, "protect", "ضد تبچی", "Anti-tabchi", enforce=True)
+_s("tabchi_min", "int", 30, "protect", "دقیقه‌های اول عضویت", "First minutes after joining", lo=1, hi=1440)
+_s("tabchi_action", "choice", "delete", "protect", "با تبچی", "On tabchi", choices=("delete", "mute", "ban"))
+_s("mentions_on", "bool", False, "protect", "ضد منشن زیاد", "Mass-mention filter", enforce=True)
+_s("mentions_max", "int", 5, "protect", "حداکثر منشن", "Max mentions", lo=2, hi=50)
+_s("dupes_on", "bool", False, "protect", "ضد پیام تکراری", "Repeated-message filter", enforce=True)
+_s("dupes_n", "int", 3, "protect", "تکرار مجاز", "Repeats allowed", lo=2, hi=20)
+# 5.0: activity, invites, members, assistant, tidy replies
+_s("stats_on", "bool", True, "privacy", "آمار فعالیت (فقط شمارش)", "Activity stats (counts only)")
+_s("stats_public", "bool", True, "stats", "آمار برای اعضا", "Stats for members")
+_s("member_links", "bool", False, "stats", "لینک دعوت شخصی اعضا", "Personal invite links")
+_s("afk_on", "bool", True, "general", "حالت غیبت (afk)", "AFK replies")
+_s("bot_ttl_min", "int", 0, "general", "پاک شدن جواب ربات (دقیقه، ۰ = هرگز)", "Delete bot replies after (min, 0 = never)", lo=0, hi=1440)
+_s("ai_name", "text", "پایلوت", "ai", "اسم دستیار", "Assistant name")
 
 FILTER_KEYS = [k for k, s in SPECS.items() if s.enforce]
 SECTIONS = {
@@ -108,6 +125,7 @@ SECTIONS = {
     "watch": ("👁 دسترسی‌ها", "👁 Permissions"),
     "privacy": ("🔐 حریم خصوصی", "🔐 Privacy"),
     "general": ("🌐 زبان و ساعت", "🌐 Language & time"),
+    "stats": ("📊 آمار و دعوت", "📊 Stats & invites"),
 }
 
 

@@ -39,9 +39,12 @@ async def note_user(u: User | None, chat_id: int | None = None, status: str | No
                 # username moved to another account; drop the old binding
                 c.execute("INSERT INTO rz_username_history VALUES(?,?,?)", (r[0], r[1], t))
                 c.execute("UPDATE rz_users SET username=NULL, username_lc=NULL WHERE user_id=?", (r[0],))
-        prev = c.execute("SELECT username FROM rz_users WHERE user_id=?", (u.id,)).fetchone()
+        prev = c.execute("SELECT username, first_name, last_name FROM rz_users WHERE user_id=?", (u.id,)).fetchone()
         if prev and prev[0] and prev[0] != un:
             c.execute("INSERT INTO rz_username_history VALUES(?,?,?)", (u.id, prev[0], t))
+        if prev and (prev[1] or prev[2]) and (prev[1] or "", prev[2] or "") != ((u.first_name or "")[:64], (u.last_name or "")[:64]):
+            old_name = " ".join(x for x in (prev[1], prev[2]) if x)[:128]
+            c.execute("INSERT OR REPLACE INTO rz_name_history(user_id,name,seen_at) VALUES(?,?,?)", (u.id, old_name, t))
         c.execute("INSERT INTO rz_users(user_id,username,username_lc,first_name,last_name,is_bot,last_seen,source) "
                   "VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET username=excluded.username,"
                   "username_lc=excluded.username_lc,first_name=excluded.first_name,last_name=excluded.last_name,"

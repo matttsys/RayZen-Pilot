@@ -60,23 +60,27 @@ async def k_start(c: Cmd):
                                 "🎫 Send your message to the admins (15 min)."))
     if p == "rem":
         return await say(c, c.t("✅ یادآوری‌ها اینجا میاد.", "✅ Reminders will arrive here."))
+    from pilot import SOURCE_URL, hooks
+    if not p and await hooks.first(hooks.PRIVATE_START, c):
+        return                                   # owner-hosted edition: channel request handled it
     await say(c, c.t("👋 <b>RayZen Pilot</b>\nربات مدیریت گروه.\n\n"
                      "/help · /mycases · /mydata\nEnglish: /lang en",
                      "👋 <b>RayZen Pilot</b>\nGroup management bot.\n\n"
                      "/help · /mycases · /mydata\nفارسی: /lang fa"),
-              [[(c.t("➕ افزودن به گروه", "➕ Add to a group"), add_link())]])
+              [[(c.t("➕ افزودن به گروه", "➕ Add to a group"), add_link())],
+               [(c.t("کد منبع (AGPL)", "Source code (AGPL)"), SOURCE_URL)]])
 
 
 @command("help", scope="any", admin=False, section="general")
 async def k_help(c: Cmd):
-    if c.args and c.args[0].lower() in ui.HELP:
-        txt, rows = ui.help_section(c.args[0].lower(), c.lang)
-    else:
-        txt, rows = ui.help_main(c.lang)
+    from pilot import catalog
+    role = await catalog.role_of(c.chat_id, c.chat_type, c.actor_id, c.anon)
+    q = c.rest.strip()
+    txt, rows = catalog.search(q, c.lang, role, c.is_private) if q else catalog.main_page(c.lang, role)
     await say(c, txt, rows)
 
 
-@command("settings", "panel", "config", right=None, section="general")
+@command("settings", "config", right=None, section="general")
 async def k_settings(c: Cmd):
     txt, rows = await ui.settings_main(c.chat_id, c.chat_title, c.lang)
     await say(c, txt, rows)
@@ -296,8 +300,8 @@ async def create_reminder(c: Cmd, ts: float, text: str, scope: str) -> tuple[int
     chat = c.chat_id if (scope == "group" or c.is_group) else c.actor_id
     rid, _ = await RT.db.run("INSERT INTO rz_reminders(chat_id,thread_id,user_id,scope,text,due,status,created_at) VALUES(?,?,?,?,?,?,?,?)",
                              (chat, c.thread_id if c.is_forum else None, c.actor_id, scope, text[:1500], ts, "active", now()))
-    msg = c.t(f"⏰ یادآوری #{rid}: {fmt_dt(ts, c.tz, 'fa')}" + (" (گروه)" if scope == "group" else " (پیوی)"),
-              f"⏰ Reminder #{rid}: {fmt_dt(ts, c.tz, 'en')}" + (" (group)" if scope == "group" else " (private)"))
+    where = {"group": ("گروه", "group"), "here": ("همین‌جا", "here")}.get(scope, ("پیوی", "private"))
+    msg = c.t(f"⏰ یادآوری #{rid}: {fmt_dt(ts, c.tz, 'fa')} ({where[0]})", f"⏰ Reminder #{rid}: {fmt_dt(ts, c.tz, 'en')} ({where[1]})")
     if scope == "me" and not c.is_private:
         ok = await RT.db.val("SELECT dm_ok FROM rz_users WHERE user_id=?", (c.actor_id,), 0)
         if not ok:
@@ -694,10 +698,14 @@ async def _wd_fix(p, presser, chat_id, message):
 @command("privacy", scope="any", admin=False, section="privacy")
 async def k_privacy(c: Cmd):
     if c.is_private:
-        return await say(c, c.t("🔐 <b>حریم خصوصی</b>\nذخیره: آیدی، نام، یوزرنیم، اخطارها و پرونده‌ها. متن پیام‌ها ذخیره نمیشه؛ "
-                                "فقط کلمات پیام‌های گروه ۴۸ ساعت برای /purgeword نگه داشته میشه.\n/mydata · /forgetme",
-                                "🔐 <b>Privacy</b>\nStored: id, name, username, warnings and cases. Message text is not stored; "
-                                "words from group messages are kept for 48h only, for /purgeword.\n/mydata · /forgetme"))
+        return await say(c, c.t("🔐 <b>حریم خصوصی</b>\nذخیره: آیدی، نام و یوزرنیم (با سابقهٔ تغییر)، اخطارها و پرونده‌ها، "
+                                "شمار روزانهٔ پیام‌ها و ورود/خروج‌هایی که ربات دیده.\n"
+                                "متن پیام‌های گروه ذخیره نمیشه؛ فقط کلماتش ۴۸ ساعت برای /purgeword. "
+                                "گفتگو با دستیار حداکثر یک روز نگه داشته میشه.\n/mydata · /forgetme",
+                                "🔐 <b>Privacy</b>\nStored: id, name and username (with change history), warnings and cases, "
+                                "daily message counts and the joins/leaves the bot saw.\n"
+                                "Group message text is not stored; only its words, for 48h, for /purgeword. "
+                                "Assistant conversations are kept for at most a day.\n/mydata · /forgetme"))
     ok, _ = await authz.check(c.chat_id, c.actor_id, None)
     if not ok:
         return await say(c, c.t("🔐 متن پیام‌ها ذخیره نمیشه؛ فقط کلماتش ۴۸ ساعت برای /purgeword. /mydata در پیوی",
@@ -758,8 +766,10 @@ async def k_mydata(c: Cmd):
 @command("forgetme", scope="private", admin=False, section="privacy")
 async def k_forgetme(c: Cmd):
     tok = await confirm.create(c.actor_id, c.actor_id, "forget", {}, ttl=300)
-    await say(c, c.t("🗑 پاک میشه: پروفایل، یادآورها، RSVPها، تیکت‌های بسته، نمایهٔ ۴۸ ساعته.\nمی‌مونه: اخطارها و پرونده‌ها.",
-                     "🗑 Removed: profile, reminders, RSVPs, closed tickets, 48h index.\nKept: warnings and cases."),
+    await say(c, c.t("🗑 پاک میشه: پروفایل و سابقهٔ نام، شمار فعالیت، ورود و خروج‌ها، حالت غیبت، حافظهٔ دستیار، "
+                     "یادآورها، RSVPها، تیکت‌های بسته، نمایهٔ ۴۸ ساعته.\nمی‌مونه: اخطارها، پرونده‌ها و فهرست معتمدها.",
+                     "🗑 Removed: profile and name history, activity counters, joins/leaves, AFK, assistant memory, "
+                     "reminders, RSVPs, closed tickets, 48h index.\nKept: warnings, cases and the trusted list."),
               confirm.buttons(tok, c.lang, c.t("🗑 حذف کن", "🗑 Delete")))
 
 
@@ -774,24 +784,6 @@ async def _forget_ok(p, presser, chat_id, message):
 async def k_legacy(c: Cmd):
     txt, rows = await ui.legacy_page(c.chat_id, c.lang)
     await say(c, txt, rows)
-
-
-@command("owner", scope="private", admin=False, section="general")
-async def k_owner(c: Cmd):
-    if not authz.is_owner(c.actor_id):
-        return
-    t = now()
-    chats = await RT.db.val("SELECT COUNT(*) FROM rz_chats WHERE bot_status IN ('administrator','member')", (), 0)
-    acts = await RT.db.val("SELECT COUNT(*) FROM rz_actions WHERE ts>?", (t - 86400,), 0)
-    errs = await RT.db.val("SELECT COUNT(*) FROM rz_errors WHERE ts>?", (t - 86400,), 0)
-    ai_ok = await RT.db.val("SELECT COUNT(*) FROM rz_ai_usage WHERE ts>? AND ok=1", (t - 86400,), 0)
-    ai_bad = await RT.db.val("SELECT COUNT(*) FROM rz_ai_usage WHERE ts>? AND ok=0", (t - 86400,), 0)
-    up = fmt_duration(int(t - RT.started_at), c.lang)
-    le = RT.ai.last_error if RT.ai else None
-    await say(c, f"🛠 <b>RayZen Pilot</b>\nUptime: {up}\nGroups: {chats}\nActions 24h: {acts} · Errors 24h: {errs}\n"
-                 f"AI: {esc(RT.ai.status if RT.ai else 'off')} · ok {ai_ok} / failed {ai_bad} · Model hidden"
-                 + (f"\nLast AI error: {esc(le[1])}" if le else "") +
-                 f"\nTicker errors: {RT.tick_stats.get('errors', 0)}")
 
 
 # AI tool bridge (part 2)

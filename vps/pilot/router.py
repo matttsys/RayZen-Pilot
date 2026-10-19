@@ -7,9 +7,10 @@ import time
 
 from telegram import ChatMemberRestricted, Update, User
 
-from pilot import ai, audit, authz, confirm, content, desk, logs, purgeword, settings as S, targets, tg, tools, ui
+from pilot import ai, audit, authz, confirm, content, desk, fa_commands, hooks, logs, purgeword, settings as S, targets, tg, tools, ui
 from pilot import commands as K
 from pilot import commands2 as K2
+from pilot import features  # noqa: F401  (registers the v5 feature modules: commands, hooks, AI tools)
 from pilot.ctx import Cmd, build, lang_tz, _user_lang
 from pilot.db import jl
 from pilot.rt import RT
@@ -20,20 +21,6 @@ STALE_S = 600
 _deny_cool: dict[tuple[int, int], float] = {}
 _leave_seen: dict[tuple[int, int], float] = {}
 _chat_known: dict[int, str] = {}
-
-# Persian text commands for admins
-FA_CMDS: list[tuple[str, str, bool]] = [   # (phrase, command, exact-only)
-    ("رفع بن", "unban", False), ("آنبن", "unban", False), ("رفع سکوت", "unmute", False), ("رفع سایلنت", "unmute", False),
-    ("حذف اخطار", "rmwarn", True), ("پاک کردن اخطارها", "resetwarns", True),
-    ("بن", "ban", False), ("سکوت", "mute", False), ("سایلنت", "mute", False), ("اخطار", "warn", False),
-    ("اخراج", "kick", False), ("سنجاق", "pin", True), ("پین", "pin", True), ("حذف", "del", True),
-    ("حذف کلمه", "purgeword", False), ("پاکسازی کلمه", "purgeword", False),
-    ("قفل گروه", "lockdown", False), ("بازکردن گروه", "unlock", True), ("باز کردن گروه", "unlock", True),
-    ("وضعیت قفل", "lockstatus", True), ("تنظیمات", "settings", True), ("سلامت گروه", "health", True),
-]
-FA_MEMBER = {"قوانین": "rules", "راهنما": "help", "آیدی": "id", "ایدی": "id", "اخطارهای من": "warns"}
-FA_NEEDS_TARGET = {"unban", "unmute", "ban", "mute", "warn", "kick", "pin", "del", "rmwarn", "resetwarns"}
-
 
 def _is_member_status(cm) -> bool:
     if cm is None:
@@ -112,15 +99,22 @@ async def on_message(update: Update) -> None:
         for nu in m.new_chat_members:
             await targets.note_user(nu, chat.id, status="member")
             if nu.id != RT.bot_id:
+                by = u.id if u and u.id != nu.id else None
+                await hooks.run(hooks.ON_MEMBER, chat, nu, True, by, None, "service")
                 await content.on_join(chat, nu, thread)
         await _clean_service(m)
         return
     if m.left_chat_member:
         lu = m.left_chat_member
+        if lu.id != RT.bot_id:
+            by = u.id if u and u.id != lu.id else None
+            await hooks.run(hooks.ON_MEMBER, chat, lu, False, by, None, "service")
         if lu.id != RT.bot_id and _first_leave(chat.id, lu.id):
             await content.on_leave(chat, lu)
         await _clean_service(m)
         return
+    if group and not m.new_chat_members and not m.left_chat_member:
+        await hooks.run(hooks.ON_GROUP_MESSAGE, m)
     if m.date and time.time() - m.date.timestamp() > STALE_S:
         if group:
             await purgeword.note(m)             # still deletable for 48h
@@ -129,6 +123,8 @@ async def on_message(update: Update) -> None:
     if chat.type == "private":
         if u:
             await RT.db.run("UPDATE rz_users SET dm_ok=1 WHERE user_id=?", (u.id,))
+        if m.document and await hooks.first(hooks.PRIVATE_DOCUMENT, m):
+            return
         if text.startswith("/"):
             if await run_command(update, text):
                 return
@@ -136,10 +132,14 @@ async def on_message(update: Update) -> None:
             d = await desk.pop_draft(u.id)
             if d:
                 return await _draft(update, d, text)
+            if await persian_command(update, text):
+                return
             if re.fullmatch(r"\s*RZ-[0-9A-Fa-f]{8}\s*", text):
                 return await tg.send(chat.id, "این کد را در گروه یا کانال لاگ بفرستید." if (await _user_lang(u)) == "fa" else
                                      "Send this code in the log group or channel.")
             c = await build(update, name="ai", text=text, source="mention")
+            if c is None or await hooks.first(hooks.PRIVATE_TEXT, c):
+                return
             await ai.handle(c, text)
         return
     if not group:
@@ -150,11 +150,12 @@ async def on_message(update: Update) -> None:
     if text.startswith("/"):
         if await run_command(update, text):
             return
+    await hooks.run(hooks.AFTER_FILTERS, m, text)
     if not text:
         return
     if await persian_command(update, text):
         return
-    ai_text = _ai_trigger(m, text)
+    ai_text = await _ai_trigger(m, text)
     if ai_text is None:
         await purgeword.note(m)                 # commands and requests to the bot are not indexed
     if text.startswith("#"):
@@ -188,7 +189,10 @@ async def _clean_service(m) -> None:
             await audit.record(m.chat_id, None, "auto", "auto_delete", params={"rule": "clean_service", "message_id": m.message_id})
 
 
-def _ai_trigger(m, text: str) -> str | None:
+async def _ai_trigger(m, text: str) -> str | None:
+    """Text for the assistant when the message is addressed to it: @mention, reply to one of its answers,
+    or a message that starts with the group's assistant name. Anything else is ordinary chat."""
+    from pilot import assistant
     un = RT.bot_username.lower()
     if un:
         for e in (m.entities or ()) + (m.caption_entities or ()):
@@ -200,8 +204,17 @@ def _ai_trigger(m, text: str) -> str | None:
     r = m.reply_to_message
     if r and r.from_user and r.from_user.id == RT.bot_id:
         rt = (r.text or "").lstrip()
-        if rt.startswith(("🤖", "❓")):
+        if assistant.is_answer(m.chat_id, r.message_id) or rt.startswith(("🤖", "❓")):
             return text
+    name = await S.get(m.chat_id, "ai_name")
+    if name and RT.cfg.ai_configured and fa_commands.intentional(m):
+        n, t = fa_commands.norm(name), fa_commands.norm(text)
+        if t == n:
+            return ""
+        for sep in (" ", "،", ",", ":", "؛"):
+            if t.startswith(n + sep):
+                cut = len(name)
+                return text.strip()[cut:].lstrip(" ،,:؛\u200c").strip() or text
     return None
 
 
@@ -221,7 +234,7 @@ async def _draft(update: Update, d: dict, text: str) -> None:
 CMD_RE = re.compile(r"^/([A-Za-z0-9_]{1,32})(?:@([A-Za-z0-9_]{3,64}))?(?=\s|$)")
 
 
-async def run_command(update: Update, text: str, name: str | None = None) -> bool:
+async def run_command(update: Update, text: str, name: str | None = None, source: str = "cmd", html_skip: int = 1) -> bool:
     if name is None:
         mm = CMD_RE.match(text)
         if not mm:
@@ -232,9 +245,13 @@ async def run_command(update: Update, text: str, name: str | None = None) -> boo
     spec = K.REG.get(name)
     if spec is None:
         return False
-    c = await build(update, name=name, text=text)
+    c = await build(update, name=name, text=text, html_skip=html_skip)
     if c is None:
         return True
+    c.source = source
+    from pilot import metrics
+    metrics.count("cmd:" + (spec.names[0] if spec.names else name))
+    metrics.count("src:" + source)
     if spec.scope == "group" and not c.is_group:
         await c.say(c.t("فقط در گروه.", "Group only."))
         return True
@@ -290,23 +307,34 @@ async def _anon_cmd(p: dict, presser: int, chat_id: int, message) -> str:
 
 
 async def persian_command(update: Update, text: str) -> bool:
-    t = text.strip()
-    if len(t) > 80 or "\n" in t:
-        return False
+    """Persian text command. Unknown or casual text returns False and is treated as chat."""
     m = update.message
-    if t in FA_MEMBER:
-        return await run_command(update, "/" + FA_MEMBER[t], name=FA_MEMBER[t])
-    for phrase, cmd, exact in FA_CMDS:
-        if t == phrase or (not exact and t.startswith(phrase + " ")):
-            u = m.from_user
-            anon = m.sender_chat is not None and m.sender_chat.id == m.chat_id
-            if not anon and (u is None or u.id not in await authz.admin_ids(m.chat_id)):
-                return False                     # normal messages: ignore
-            rest = t[len(phrase):].strip()
-            if cmd in FA_NEEDS_TARGET and not m.reply_to_message and not re.match(r"^[@\d۰-۹]", rest):
-                return False
-            return await run_command(update, f"/{cmd} {rest}".strip(), name=cmd)
-    return False
+    if not fa_commands.intentional(m):
+        return False
+    hit = fa_commands.match(text)
+    if hit is None:
+        return False
+    cmd, rest, kind, words = hit
+    cmd, _, fixed = cmd.partition(" ")           # phrases may carry fixed arguments ("welcome preview")
+    if fixed:
+        rest = (fixed + " " + rest).strip()
+    spec = K.REG.get(cmd)
+    if spec is None:
+        return False
+    if spec.scope == "private" and m.chat.type != "private":
+        return False
+    if spec.scope == "group" and m.chat.type == "private":
+        return False
+    if spec.admin and m.chat.type != "private":
+        u = m.from_user
+        anon = m.sender_chat is not None and m.sender_chat.id == m.chat_id
+        if not anon and (u is None or u.id not in await authz.admin_ids(m.chat_id)):
+            return False                         # a member saying "بن" is just chatting
+    if kind == "target" and not fa_commands.has_target(m, rest):
+        return False
+    if m.chat.type == "private" and rest and spec.section not in ("utils", "general"):
+        return False                             # in private chat full sentences go to the assistant
+    return await run_command(update, f"/{cmd} {rest}".strip(), name=cmd, source="fa", html_skip=words)
 
 
 # callbacks
@@ -339,7 +367,7 @@ async def on_callback(update: Update) -> None:
     fam = parts[0]
     c = _qcmd(q, lang, tz)
     try:
-        fn = CALLBACKS.get(fam)
+        fn = CALLBACKS.get(fam) or hooks.CALLBACKS.get(fam)
         if fn is None:
             return await tg.answer(q, "منقضی شده." if fa else "Expired.")
         await fn(q, c, parts)
@@ -438,9 +466,15 @@ async def cb_settings(q, c: Cmd, p: list[str]) -> None:
 
 
 async def cb_help(q, c: Cmd, p: list[str]) -> None:
+    from pilot import catalog
     await tg.answer(q)
+    role = await catalog.role_of(c.chat_id, c.chat_type, q.from_user.id)
     key = p[1] if len(p) > 1 else "main"
-    t2, rows = ui.help_section(key, c.lang) if key in ui.HELP else ui.help_main(c.lang)
+    page = int(p[2]) if len(p) > 2 and p[2].isdigit() else 0
+    if key in catalog.CAT_KEYS or key in catalog.OLD_KEYS:
+        t2, rows = catalog.category_page(key, page, c.lang, role, c.chat_id > 0)
+    else:
+        t2, rows = catalog.main_page(c.lang, role)
     await tg.edit(q.message, t2, rows)
 
 
@@ -722,13 +756,13 @@ async def on_my_member(update: Update) -> None:
     joined = old in ("left", "kicked") and new in ("member", "administrator")
     promoted = old == "member" and new == "administrator"
     if joined or promoted:
-        lang, _ = await lang_tz(chat.id)
-        txt, rows = await tools.onboarding_text(chat, lang)
-        await tg.send(chat.id, txt, rows=rows, silent=True)
-        await RT.db.run("UPDATE rz_chats SET onboarded=1 WHERE chat_id=?", (chat.id,))
+        # Quiet onboarding: nothing is posted to the group and no setting or permission changes.
+        # Missing rights are explained only when someone uses a feature that needs them.
+        await RT.db.run("UPDATE rz_chats SET onboarded=1, left_at=NULL WHERE chat_id=?", (chat.id,))
         await logs.owner(f"➕ {'در این گروه ادمین شدم' if promoted else 'به گروه اضافه شدم'}: {esc(chat.title)} [<code>{chat.id}</code>] "
                          f"· توسط <code>{actor.id if actor else '?'}</code>")
     elif new in ("left", "kicked"):
+        await RT.db.run("UPDATE rz_chats SET left_at=? WHERE chat_id=?", (now(), chat.id))
         await logs.owner(f"➖ از گروه حذف شدم: {esc(chat.title)} [<code>{chat.id}</code>]")
 
 
@@ -745,11 +779,17 @@ async def on_chat_member(update: Update) -> None:
     was, is_ = _is_member_status(cm.old_chat_member), _is_member_status(cm.new_chat_member)
     if u.id == RT.bot_id:
         return
+    actor = cm.from_user
+    by = actor.id if actor and actor.id != u.id else None
+    via = "request" if getattr(cm, "via_join_request", False) else ("link" if cm.invite_link else ("added" if by else "self"))
     if not was and is_:
+        await hooks.run(hooks.ON_MEMBER, chat, u, True, by, cm.invite_link, via)
         await ensure_chat(chat)
         await content.on_join(chat, u)
-    elif was and not is_ and _first_leave(chat.id, u.id):
-        await content.on_leave(chat, u)
+    elif was and not is_:
+        await hooks.run(hooks.ON_MEMBER, chat, u, False, by, None, "kicked" if cm.new_chat_member.status == "kicked" else "left")
+        if _first_leave(chat.id, u.id):
+            await content.on_leave(chat, u)
 
 
 async def on_channel_post(update: Update) -> None:

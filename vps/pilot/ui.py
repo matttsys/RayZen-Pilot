@@ -132,7 +132,7 @@ def help_section(key: str, lang: str) -> tuple[str, list]:
 
 
 # settings
-SECTION_ORDER = ["protect", "welcome", "warn", "answers", "desk", "ai", "watch", "privacy", "general"]
+SECTION_ORDER = ["protect", "welcome", "warn", "answers", "desk", "stats", "ai", "watch", "privacy", "general"]
 RESTRICT_KEYS = {"captcha_on", "captcha_min", "captcha_fail", "raid_on", "raid_joins", "raid_lock_min", "flood_on",
                  "flood_n", "flood_s", "flood_action", "warn_limit", "warn_action", "warn_mute_h"}
 INT_STEPS = {"flood_n": 1, "flood_s": 5, "captcha_min": 1, "raid_joins": 1, "raid_lock_min": 5, "cooldown_s": 5,

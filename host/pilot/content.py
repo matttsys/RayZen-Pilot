@@ -56,8 +56,9 @@ async def enforce(m: Message) -> str | None:
     eff = await S.values(chat_id)
     if eff["paused"]:
         return None
+    from pilot import hooks
     msg_rules = [k for k in ("f_channels", "f_links", "f_forwards", "f_photos", "f_videos", "f_documents", "f_stickers",
-                             "f_gifs", "f_voice", "f_audio", "f_words", "flood_on", "cooldown_on") if eff[k]]
+                             "f_gifs", "f_voice", "f_audio", "f_words", "flood_on", "cooldown_on", *hooks.GUARD_KEYS) if eff.get(k)]
     if not msg_rules:
         return None
     sc = m.sender_chat
@@ -74,6 +75,9 @@ async def enforce(m: Message) -> str | None:
         return None
     if u.id in await authz.admin_ids(chat_id):
         return None
+    from pilot import guards
+    if await guards.is_trusted(chat_id, u.id):
+        return None
     if eff["f_links"] and has_link(m):
         return await _remove(m, "f_links")
     if eff["f_forwards"] and m.forward_origin is not None:
@@ -84,11 +88,14 @@ async def enforce(m: Message) -> str | None:
                 continue
             return await _remove(m, key)
     if eff["f_words"]:
-        words = await RT.db.all("SELECT word FROM rz_blockwords WHERE chat_id=?", (chat_id,))
+        words = await RT.db.all("SELECT word, action FROM rz_blockwords WHERE chat_id=?", (chat_id,))
         txt = " " + norm_text((m.text or "") + " " + (m.caption or "")) + " "
         for w in words:
             if norm_text(w["word"]) and norm_text(w["word"]) in txt:
-                return await _remove(m, "f_words")
+                rule = await _remove(m, "f_words")
+                if rule and w["action"] in ("warn", "mute", "ban"):
+                    await _word_action(m, eff, w["action"], w["word"])
+                return rule
     key = (chat_id, u.id)
     t = time.time()
     if eff["cooldown_on"]:
@@ -105,7 +112,33 @@ async def enforce(m: Message) -> str | None:
             await _remove(m, "flood_on")
             await _flood_action(m, eff)
             return "flood_on"
+    for guard in hooks.GUARDS:
+        try:
+            rule = await guard(m, eff)
+        except Exception:  # noqa: BLE001
+            log.exception("guard failed")
+            continue
+        if rule:
+            return rule
     return None
+
+
+async def _word_action(m: Message, eff: dict, action: str, word: str) -> None:
+    """Per-word sanction set with /addblock word warn|mute|ban (delete only by default)."""
+    from pilot import moderation
+    from pilot.targets import Target
+    c = Cmd(chat_id=m.chat_id, chat_type=m.chat.type, actor_id=None, actor_name="auto", source="auto", lang=eff["lang"],
+            tz=eff["tz"], thread_id=m.message_thread_id if m.is_topic_message else None, is_forum=bool(m.chat.is_forum))
+    t = Target(user_id=m.from_user.id, name=m.from_user.full_name, username=m.from_user.username, via="auto", verified=True)
+    reason = c.t("کلمهٔ ممنوع", "blocked word")
+    if action == "warn":
+        r = await moderation.warn(c, t, reason)
+    elif action == "ban":
+        r = await moderation.ban(c, t, reason=reason)
+    else:
+        r = await moderation.mute(c, t, duration=3600, reason=reason)
+    if r.ok:
+        await c.say(r.text, reply=False)
 
 
 async def _remove(m: Message, rule: str, ban_sender_chat: bool = False) -> str | None:

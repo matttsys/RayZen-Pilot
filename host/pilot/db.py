@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import logging
 import os
 import shutil
@@ -116,12 +117,54 @@ CREATE INDEX IF NOT EXISTS ix_msg_index_ts ON rz_msg_index(ts);
 CREATE INDEX IF NOT EXISTS ix_msg_index_sender ON rz_msg_index(sender_id);
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1), (2, SCHEMA_V2)]
+# v3 (5.0): observed activity counters, member events, invite links, trusted users, AFK, usage and AI
+# accounting, bounded assistant memory, scheduled cleanup of bot replies. Counters only, never message text.
+SCHEMA_V3 = """
+CREATE TABLE IF NOT EXISTS rz_activity (
+  chat_id INTEGER, user_id INTEGER, day TEXT, msgs INTEGER DEFAULT 0, media INTEGER DEFAULT 0,
+  PRIMARY KEY (chat_id, user_id, day));
+CREATE INDEX IF NOT EXISTS ix_activity_day ON rz_activity(chat_id, day);
+CREATE TABLE IF NOT EXISTS rz_activity_hour (
+  chat_id INTEGER, day TEXT, hour INTEGER, msgs INTEGER DEFAULT 0, PRIMARY KEY (chat_id, day, hour));
+CREATE TABLE IF NOT EXISTS rz_member_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER, user_id INTEGER, ts REAL, kind TEXT, by_user INTEGER, link TEXT);
+CREATE INDEX IF NOT EXISTS ix_member_events ON rz_member_events(chat_id, ts);
+CREATE TABLE IF NOT EXISTS rz_stats_meta (
+  chat_id INTEGER PRIMARY KEY, since REAL, report TEXT, report_at TEXT, report_dest TEXT, last_key TEXT);
+CREATE TABLE IF NOT EXISTS rz_name_history (user_id INTEGER, name TEXT, seen_at REAL, PRIMARY KEY (user_id, name));
+CREATE TABLE IF NOT EXISTS rz_invites (
+  chat_id INTEGER, link TEXT, name TEXT, owner_id INTEGER, created_by INTEGER, created_at REAL, expires_at REAL,
+  member_limit INTEGER, join_request INTEGER DEFAULT 0, revoked INTEGER DEFAULT 0, joins INTEGER DEFAULT 0,
+  PRIMARY KEY (chat_id, link));
+CREATE TABLE IF NOT EXISTS rz_trusted (
+  chat_id INTEGER, user_id INTEGER, by_user INTEGER, ts REAL, reason TEXT, PRIMARY KEY (chat_id, user_id));
+CREATE TABLE IF NOT EXISTS rz_afk (chat_id INTEGER, user_id INTEGER, reason TEXT, since REAL, PRIMARY KEY (chat_id, user_id));
+CREATE TABLE IF NOT EXISTS rz_usage (day TEXT, name TEXT, n INTEGER DEFAULT 0, PRIMARY KEY (day, name));
+CREATE TABLE IF NOT EXISTS rz_ai_memory (chat_id INTEGER, user_id INTEGER, ts REAL, role TEXT, text TEXT);
+CREATE INDEX IF NOT EXISTS ix_ai_memory ON rz_ai_memory(chat_id, user_id, ts);
+CREATE TABLE IF NOT EXISTS rz_bot_msgs (chat_id INTEGER, message_id INTEGER, delete_at REAL, PRIMARY KEY (chat_id, message_id));
+CREATE INDEX IF NOT EXISTS ix_bot_msgs ON rz_bot_msgs(delete_at);
+ALTER TABLE rz_blockwords ADD COLUMN action TEXT;
+ALTER TABLE rz_ai_usage ADD COLUMN prompt_tokens INTEGER;
+ALTER TABLE rz_ai_usage ADD COLUMN completion_tokens INTEGER;
+ALTER TABLE rz_ai_usage ADD COLUMN usage_src TEXT;
+ALTER TABLE rz_ai_usage ADD COLUMN latency_ms INTEGER;
+ALTER TABLE rz_ai_usage ADD COLUMN attempts INTEGER;
+ALTER TABLE rz_ai_usage ADD COLUMN feature TEXT;
+ALTER TABLE rz_chats ADD COLUMN last_activity REAL;
+ALTER TABLE rz_chats ADD COLUMN left_at REAL;
+CREATE INDEX IF NOT EXISTS ix_ai_usage_ts ON rz_ai_usage(ts);
+CREATE INDEX IF NOT EXISTS ix_user_chats_seen ON rz_user_chats(chat_id, last_seen);
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3)]
+_ADD_COL = re.compile(r"^ALTER TABLE (\w+) ADD COLUMN (\w+)", re.I)
 CHAT_TABLES = ["rz_chats", "rz_settings", "rz_user_chats", "rz_actions", "rz_cases", "rz_appeals", "rz_warns",
                "rz_answers", "rz_rules", "rz_blockwords", "rz_lock_layers", "rz_perm_state", "rz_night",
                "rz_log_routes", "rz_log_queue", "rz_confirm", "rz_announcements", "rz_reminders", "rz_events",
                "rz_polls", "rz_digest", "rz_join_requests", "rz_tickets", "rz_watch", "rz_errors",
-               "rz_legacy_review", "rz_ai_usage", "rz_msg_index"]
+               "rz_legacy_review", "rz_ai_usage", "rz_msg_index", "rz_activity", "rz_activity_hour",
+               "rz_member_events", "rz_stats_meta", "rz_invites", "rz_trusted", "rz_afk", "rz_ai_memory", "rz_bot_msgs"]
 
 
 def jd(v: Any) -> str:
@@ -196,6 +239,9 @@ class DB:
                         c.execute("DROP INDEX IF EXISTS idx_rz_events")
                         info["renamed"] = ["rz_events->legacy_rz_events"]
                 for stmt in [s for s in sql.split(";\n") if s.strip()]:
+                    m = _ADD_COL.match(stmt.strip())
+                    if m and m.group(2) in self._cols(m.group(1)):
+                        continue                 # column already there (partial earlier upgrade)
                     c.execute(stmt)
                 c.execute("INSERT OR REPLACE INTO rz_meta(k,v) VALUES('schema_version',?)", (str(ver),))
                 c.execute("COMMIT")
@@ -300,7 +346,7 @@ class DB:
             if self._has("blocklist"):
                 for r in c.execute("SELECT chat_id,trigger,is_regex FROM blocklist").fetchall():
                     if not r[2]:
-                        c.execute("INSERT OR IGNORE INTO rz_blockwords VALUES(?,?)", (r[0], str(r[1]).lower()[:60]))
+                        c.execute("INSERT OR IGNORE INTO rz_blockwords(chat_id,word) VALUES(?,?)", (r[0], str(r[1]).lower()[:60]))
                         stats["blockwords"] += 1
             if self._has("rz_cfg"):
                 # old per-chat JSON config: copy content, park filters

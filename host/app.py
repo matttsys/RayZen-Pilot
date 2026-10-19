@@ -92,6 +92,14 @@ class Supervisor:
             if self.stop.is_set():
                 log(f"pilot exited rc={rc} during shutdown")
                 return
+            try:
+                from shared import update_guard
+                msg = update_guard.note_exit(ROOT, time.monotonic() - t0 >= HEALTHY_AFTER)
+                if msg:
+                    log(msg)
+                    idx = 0
+            except Exception as exc:  # noqa: BLE001
+                log(f"update guard error: {exc!r}")
             if time.monotonic() - t0 >= HEALTHY_AFTER:
                 idx = 0
             delay = BACKOFF[min(idx, len(BACKOFF) - 1)]

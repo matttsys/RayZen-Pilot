@@ -360,7 +360,9 @@ async def k_lockstatus(c):
 @command("night", right="restrict", section="locks")
 async def k_night(c):
     from pilot import planner
-    a = [norm_digits(x) for x in c.args]
+    # "/night 01:00 08:00", "قفل شبانه از ۱ تا ۸", "/night 1:00-8:00"
+    raw = re.sub(r"(?<=\d)\s*[-–—]\s*(?=\d)", " ", " ".join(norm_digits(x) for x in c.args))
+    a = [x for x in raw.split() if x.lower() not in ("از", "تا", "الی", "ساعت", "from", "to", "until")]
     if not a or a[0].lower() in ("status", "وضعیت"):
         n = await RT.db.one("SELECT * FROM rz_night WHERE chat_id=? AND enabled=1", (c.chat_id,))
         return await say(c, (c.t(f"🌙 شبانه: {n['start']} تا {n['end']}", f"🌙 Night: {n['start']}-{n['end']}") if n else
@@ -421,7 +423,7 @@ async def set_setting(c: Cmd, key: str, value, quiet: bool = False) -> str:
                            undo={"op": "setting", "key": key, "old": old, "new": new},
                            log_line=f"#SETTING {key}: {esc(str(old)[:40])} → {esc(str(new)[:40])} · {M.who(c)}")
     lbl = S.label(key, c.lang)
-    txt = c.t(f"✅ {lbl}: {S.fmt_value(key, new, 'fa')}", f"✅ {lbl}: {S.fmt_value(key, new, 'en')}")
+    txt = c.t(f"✅ {lbl}: {esc(S.fmt_value(key, new, 'fa'))}", f"✅ {lbl}: {esc(S.fmt_value(key, new, 'en'))}")
     if S.SPECS[key].enforce and new is True:
         need = "delete" if key not in ("captcha_on", "raid_on") else "restrict"
         if not await authz.bot_has(c.chat_id, need, fresh=True):
@@ -448,8 +450,8 @@ async def toggle_cmd(c: Cmd, key: str, extra: Callable[[Cmd], Awaitable[str]] | 
     if v is None:
         cur = await S.load(c.chat_id)
         val, src = cur[key]
-        return await say(c, c.t(f"{S.label(key, 'fa')}: {S.fmt_value(key, val, 'fa')} · <code>/{c.name} on|off</code>",
-                                f"{S.label(key, 'en')}: {S.fmt_value(key, val, 'en')} · <code>/{c.name} on|off</code>"))
+        return await say(c, c.t(f"{S.label(key, 'fa')}: {esc(S.fmt_value(key, val, 'fa'))} · <code>/{c.name} on|off</code>",
+                                f"{S.label(key, 'en')}: {esc(S.fmt_value(key, val, 'en'))} · <code>/{c.name} on|off</code>"))
     txt = await set_setting(c, key, v)
     if extra and v:
         txt += await extra(c)
@@ -523,24 +525,70 @@ async def k_unblock(c):
     await say(c, await set_setting(c, key, False))
 
 
+WORD_ACTIONS = {"delete": "delete", "حذف": "delete", "warn": "warn", "اخطار": "warn", "mute": "mute", "سکوت": "mute",
+                "ban": "ban", "بن": "ban"}
+
+
+def _act_label(a: str | None, lang: str) -> str:
+    return {"warn": ("اخطار", "warn"), "mute": ("سکوت", "mute"), "ban": ("بن", "ban")}.get(a or "", ("حذف", "delete"))[0 if lang == "fa" else 1]
+
+
 @command("blocklist", admin=False, section="filters")
 async def k_blocklist(c):
-    rows = await RT.db.all("SELECT word FROM rz_blockwords WHERE chat_id=? ORDER BY word", (c.chat_id,))
+    rows = await RT.db.all("SELECT word, action FROM rz_blockwords WHERE chat_id=? ORDER BY word", (c.chat_id,))
     on = await S.get(c.chat_id, "f_words")
     head = c.t(f"کلمات ممنوع ({'روشن' if on else 'خاموش'}):", f"Blocked words ({'on' if on else 'off'}):")
-    await say(c, head + "\n" + ("، ".join(esc(r["word"]) for r in rows) or "-"))
+    body = "، ".join(esc(r["word"]) + (f" ({_act_label(r['action'], c.lang)})" if r["action"] not in (None, "delete") else "")
+                     for r in rows)
+    await say(c, head + "\n" + (body or "-"))
 
 
 @command("addblock", "addblocklist", right="info", section="filters")
 async def k_addblock(c):
-    words = [w.strip().lower() for w in re.split(r"[,،\n]", c.rest) if w.strip()][:50]
+    body, _, act = c.rest.partition("|")
+    action = WORD_ACTIONS.get(act.strip().lower(), None) if act.strip() else "delete"
+    if action is None:
+        return await say(c, c.t("عمل نامعتبر. یکی از: حذف، اخطار، سکوت، بن", "Invalid action. One of: delete, warn, mute, ban"))
+    words = [w.strip().lower() for w in re.split(r"[,،\n]", body) if w.strip()][:100]
     if not words:
-        return await say(c, c.t("<code>/addblock کلمه۱, کلمه۲</code>", "<code>/addblock word1, word2</code>"))
+        return await say(c, c.t("<code>/addblock کلمه۱، کلمه۲</code> · با مجازات: <code>/addblock کلمه | سکوت</code>",
+                                "<code>/addblock word1, word2</code> · with a sanction: <code>/addblock word | mute</code>"))
     for w in words:
-        await RT.db.run("INSERT OR IGNORE INTO rz_blockwords VALUES(?,?)", (c.chat_id, w[:60]))
+        await RT.db.run("INSERT INTO rz_blockwords(chat_id,word,action) VALUES(?,?,?) ON CONFLICT(chat_id,word) DO UPDATE SET action=excluded.action",
+                        (c.chat_id, w[:60], None if action == "delete" else action))
     on = await S.get(c.chat_id, "f_words")
-    await say(c, c.t(f"✅ {len(words)} کلمه اضافه شد.", f"✅ Added {len(words)}.") +
-              ("" if on else c.t(" (فیلتر خاموش است: <code>/block words</code>)", " (filter off: <code>/block words</code>)")))
+    await say(c, c.t(f"✅ {len(words)} کلمه اضافه شد ({_act_label(action, 'fa')}).", f"✅ Added {len(words)} ({_act_label(action, 'en')}).") +
+              ("" if on else c.t(" فیلتر خاموش است: <code>/block words</code>", " Filter is off: <code>/block words</code>")))
+
+
+@command("blockexport", right=None, section="filters")
+async def k_blockexport(c):
+    rows = await RT.db.all("SELECT word, action FROM rz_blockwords WHERE chat_id=? ORDER BY action, word", (c.chat_id,))
+    if not rows:
+        return await say(c, c.t("لیست خالیه.", "The list is empty."))
+    groups: dict[str, list[str]] = {}
+    for r in rows:
+        groups.setdefault(r["action"] or "delete", []).append(r["word"])
+    lines = [f"<code>/addblock {esc('، '.join(ws))}" + (f" | {a}" if a != "delete" else "") + "</code>" for a, ws in groups.items()]
+    await say(c, c.t("برای کپی در گروه دیگر:\n", "To copy into another group:\n") + "\n".join(lines))
+
+
+@command("blockclear", right="info", section="filters")
+async def k_blockclear(c):
+    n = await RT.db.val("SELECT COUNT(*) FROM rz_blockwords WHERE chat_id=?", (c.chat_id,), 0)
+    if not n:
+        return await say(c, c.t("لیست خالیه.", "The list is empty."))
+    if c.source != "confirmed":
+        tok = await confirm.create(c.chat_id, c.actor_id, "blockclear", {"cmd": c.to_payload()}, right="info")
+        return await say(c, c.t(f"⚠️ همهٔ {n} کلمهٔ ممنوع پاک شود؟", f"⚠️ Delete all {n} blocked words?"), confirm.buttons(tok, c.lang))
+
+
+@confirm.handler("blockclear")
+async def _blockclear_ok(p, presser, chat_id, message):
+    c = Cmd.from_payload(p["cmd"])
+    _, n = await RT.db.run("DELETE FROM rz_blockwords WHERE chat_id=?", (chat_id,))
+    await audit.record(chat_id, presser, "admin", "setting", params={"blockwords_cleared": n})
+    return c.t(f"✅ {n} کلمه پاک شد.", f"✅ Removed {n} words.")
 
 
 @command("rmblock", "rmblocklist", right="info", section="filters")

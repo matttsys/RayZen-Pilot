@@ -111,6 +111,8 @@ async def post_init(app: Application) -> None:
         log.warning("config: %s", w)
     log.info("RayZen Pilot %s up as @%s (id %s); AI=%s models=%s tz=%s", __version__, RT.bot_username, RT.bot_id,
              "on" if RT.cfg.ai_configured else "off", f"{len(RT.cfg.models)} (hidden)", RT.cfg.tz)
+    from pilot import hooks
+    await hooks.run(hooks.ON_STARTED)
     from pilot.logs import owner
     await owner(f"✅ ربات روشن شد · {__version__}")
 
@@ -119,6 +121,9 @@ async def post_shutdown(app: Application) -> None:
     task = RT.tick_stats.get("task")
     if task:
         task.cancel()
+    from pilot import hooks
+    if RT.db:
+        await hooks.run(hooks.ON_SHUTDOWN)
     if RT.ai:
         await RT.ai.close()
     if RT.db:
