@@ -35,9 +35,6 @@
 
 RayZen Pilot manages Telegram groups, and it was built for Persian first: an admin replies to someone and writes «سکوت ۲ ساعت» (mute 2 hours), and that's it. It runs on SQLite with no other services. Adding or promoting it posts nothing and changes nothing, and every filter is off until an admin turns it on. Switch a group to English with `/lang en`.
 
-> [!WARNING]
-> **This is a pre-release (`5.0.0-alpha.2`).** Every automated suite passes against an offline Telegram simulator, but live acceptance in real groups has not been run yet. Use it carefully on important groups. The stable [4.1.0](https://github.com/matttsys/RayZen-Pilot/releases/tag/v4.1.0) release is still available.
-
 ## Download
 
 | File | For |
