@@ -532,3 +532,4 @@ Both zips are built from the same code. The `owner-hosted` edition adds one file
   <img src="assets/logo-256.png" width="72" alt="RayZen Pilot logo"><br>
   <sub>RayZen Pilot 5.0.0-alpha.2 Omni · python-telegram-bot 22.8 · SQLite · <a href="https://github.com/matttsys/RayZen-Pilot">GitHub</a> · <a href="SECURITY.md">Security</a> · <a href="CHANGELOG.md">Changes</a> · Support: <a href="https://t.me/Rzroot">@Rzroot</a> · <a href="README.fa.md">فارسی</a></sub>
 </p>
+.
